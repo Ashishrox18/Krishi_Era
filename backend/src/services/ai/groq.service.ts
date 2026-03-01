@@ -3,18 +3,27 @@ import Groq from 'groq-sdk';
 class GroqService {
   private client: Groq | null = null;
   private enabled: boolean = false;
+  private initialized: boolean = false;
 
-  constructor() {
+  private initialize() {
+    if (this.initialized) return;
+    
     const apiKey = process.env.GROQ_API_KEY;
     const useGroq = process.env.USE_GROQ === 'true';
+
+    console.log('🔍 Groq Debug - USE_GROQ:', process.env.USE_GROQ);
+    console.log('🔍 Groq Debug - API Key exists:', !!apiKey);
+    console.log('🔍 Groq Debug - API Key value:', apiKey?.substring(0, 10) + '...');
 
     if (useGroq && apiKey && apiKey !== 'your_groq_api_key_here') {
       this.client = new Groq({ apiKey });
       this.enabled = true;
-      console.log('Groq AI service initialized');
+      console.log('✅ Groq AI service initialized successfully!');
     } else {
-      console.log('Groq AI service disabled - set USE_GROQ=true and GROQ_API_KEY in .env');
+      console.log('❌ Groq AI service disabled - set USE_GROQ=true and GROQ_API_KEY in .env');
     }
+    
+    this.initialized = true;
   }
 
   async getCropRecommendations(data: {
@@ -25,6 +34,8 @@ class GroqService {
     budget: number;
     season?: string;
   }): Promise<any> {
+    this.initialize(); // Lazy initialization
+    
     // Validate minimum budget (at least ₹5,000 per acre for basic farming)
     const minimumBudgetPerAcre = 5000;
     const minimumTotalBudget = minimumBudgetPerAcre * data.landSize;
@@ -110,7 +121,7 @@ Consider:
             content: prompt
           }
         ],
-        model: 'llama-3.1-70b-versatile', // Fast and capable model
+        model: 'llama-3.3-70b-versatile', // Updated to newer model
         temperature: 0.7,
         max_tokens: 2000,
       });
@@ -228,7 +239,157 @@ Consider:
   }
 
   isEnabled(): boolean {
+    this.initialize(); // Lazy initialization
     return this.enabled;
+  }
+
+  async getSellingStrategy(data: {
+    cropType: string;
+    expectedYield: number;
+    yieldUnit: string;
+    harvestMonth: string;
+    currentMarketPrice?: number;
+    storageAvailable: boolean;
+    location?: string;
+  }): Promise<any> {
+    this.initialize(); // Lazy initialization
+    
+    if (!this.enabled || !this.client) {
+      console.log('Using fallback selling strategy (Groq not configured)');
+      return this.getFallbackSellingStrategy(data);
+    }
+
+    try {
+      console.log('🤖 Using Groq AI for selling strategy...');
+      const prompt = `You are an agricultural market expert. Analyze the following crop selling scenario and provide a strategic recommendation:
+
+Crop Details:
+- Crop: ${data.cropType}
+- Expected Yield: ${data.expectedYield} ${data.yieldUnit}
+- Harvest Month: ${data.harvestMonth}
+- Current Market Price: ${data.currentMarketPrice ? `₹${data.currentMarketPrice}/${data.yieldUnit}` : 'Not provided'}
+- Storage Available: ${data.storageAvailable ? 'Yes' : 'No'}
+- Location: ${data.location || 'Not specified'}
+
+Based on historical price trends, seasonal patterns, and market dynamics for ${data.cropType}, provide:
+
+1. A clear recommendation on what percentage to sell immediately vs store for later
+2. Price predictions for the next 1, 2, and 3 months
+3. Profit comparison between selling all now vs following the recommended strategy
+4. 3-4 key insights about market conditions and timing
+5. Confidence score (0-100) for this recommendation
+
+Respond ONLY with valid JSON in this exact structure (no markdown):
+{
+  "summary": "Brief 2-3 sentence summary of the strategy",
+  "sellNowPercentage": 40,
+  "storeLaterPercentage": 60,
+  "pricePredictions": [
+    {"period": "1 month", "price": 2300, "change": 4.5},
+    {"period": "2 months", "price": 2500, "change": 13.6},
+    {"period": "3 months", "price": 2400, "change": 9.1}
+  ],
+  "profitComparison": {
+    "sellAllNow": 220000,
+    "followStrategy": 238000,
+    "additionalProfit": 18000
+  },
+  "insights": ["insight1", "insight2", "insight3", "insight4"],
+  "confidence": 82
+}
+
+Provide realistic, data-driven recommendations based on typical market behavior for ${data.cropType} in India. Use actual numbers and be specific.`;
+
+      const completion = await this.client.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert agricultural market advisor. Always respond with valid JSON only, no markdown formatting.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        model: 'llama-3.3-70b-versatile', // Updated to newer model
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+
+      const responseText = completion.choices[0]?.message?.content || '';
+      
+      // Clean up response
+      let cleanedResponse = responseText.trim();
+      if (cleanedResponse.startsWith('```json')) {
+        cleanedResponse = cleanedResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      } else if (cleanedResponse.startsWith('```')) {
+        cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
+      }
+      
+      const result = JSON.parse(cleanedResponse);
+      return result;
+    } catch (error) {
+      console.error('Groq API error:', error);
+      return this.getFallbackSellingStrategy(data);
+    }
+  }
+
+  private getFallbackSellingStrategy(data: any): any {
+    // Fallback strategy based on common agricultural practices
+    const basePrice = data.currentMarketPrice || 2000;
+    const totalYield = data.expectedYield;
+    
+    // Default strategy: sell 30% now, store 70% if storage available
+    const sellNow = data.storageAvailable ? 30 : 100;
+    const storeLater = data.storageAvailable ? 70 : 0;
+
+    const sellNowAmount = (totalYield * sellNow) / 100;
+    const storeLaterAmount = (totalYield * storeLater) / 100;
+
+    // Price predictions (typically 5-15% increase over 3 months)
+    const price1Month = Math.round(basePrice * 1.05);
+    const price2Months = Math.round(basePrice * 1.10);
+    const price3Months = Math.round(basePrice * 1.08);
+
+    // Profit calculations
+    const sellAllNow = Math.round(totalYield * basePrice);
+    const followStrategy = Math.round(
+      (sellNowAmount * basePrice) + 
+      (storeLaterAmount * 0.3 * price1Month) +
+      (storeLaterAmount * 0.4 * price2Months) +
+      (storeLaterAmount * 0.3 * price3Months)
+    );
+    const additionalProfit = followStrategy - sellAllNow;
+
+    return {
+      summary: data.storageAvailable 
+        ? `Based on market trends for ${data.cropType}, we recommend selling ${sellNow}% immediately to cover costs and storing ${storeLater}% for better prices. Expected price increase of 8-10% over next 2-3 months.`
+        : `Without storage facilities, we recommend selling your entire harvest immediately. Consider investing in storage for future harvests to maximize profits.`,
+      sellNowPercentage: sellNow,
+      storeLaterPercentage: storeLater,
+      pricePredictions: [
+        { period: '1 month', price: price1Month, change: 5.0 },
+        { period: '2 months', price: price2Months, change: 10.0 },
+        { period: '3 months', price: price3Months, change: 8.0 }
+      ],
+      profitComparison: {
+        sellAllNow,
+        followStrategy,
+        additionalProfit: data.storageAvailable ? additionalProfit : 0
+      },
+      insights: data.storageAvailable ? [
+        `${data.cropType} prices typically rise 8-12% in the 2-3 months post-harvest`,
+        'Ensure proper storage conditions to prevent quality degradation',
+        'Monitor market prices weekly to identify optimal selling windows',
+        'Consider selling in smaller batches to average out price fluctuations'
+      ] : [
+        'Without storage, immediate sale is the safest option',
+        'Consider partnering with local warehouses for future harvests',
+        'Government-backed warehouse receipt schemes can provide better prices',
+        'Negotiate with multiple buyers to get the best immediate price'
+      ],
+      confidence: data.storageAvailable ? 75 : 85
+    };
   }
 }
 

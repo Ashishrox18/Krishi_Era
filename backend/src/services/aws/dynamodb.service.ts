@@ -40,14 +40,20 @@ export class DynamoDBService {
     return response.Items || [];
   }
 
-  async update(tableName: string, key: any, updateExpression: string, expressionAttributeValues: any) {
-    const command = new UpdateCommand({
+  async update(tableName: string, key: any, updateExpression: string, expressionAttributeValues: any, expressionAttributeNames?: any) {
+    const params: any = {
       TableName: tableName,
       Key: key,
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionAttributeValues,
       ReturnValues: 'ALL_NEW',
-    });
+    };
+
+    if (expressionAttributeNames) {
+      params.ExpressionAttributeNames = expressionAttributeNames;
+    }
+
+    const command = new UpdateCommand(params);
     const response = await docClient.send(command);
     return response.Attributes;
   }

@@ -131,21 +131,6 @@ const MyListings = () => {
                     <button onClick={() => handleEdit(listing)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"><Edit2 className="h-4 w-4 mr-2" />Edit</button>
                     <button onClick={() => handleDelete(listing.id)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"><Trash2 className="h-4 w-4 mr-2" />Delete</button>
                   </div>
-                  <div className="flex space-x-3">
-                    <Link to={`/farmer/listing/${listing.id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"><Eye className="h-4 w-4 mr-2" />View Details</Link>
-                    <button onClick={() => handleEdit(listing)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"><Edit2 className="h-4 w-4 mr-2" />Edit</button>
-                    <button onClick={() => handleDelete(listing.id)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"><Trash2 className="h-4 w-4 mr-2" />Delete</button>
-                  </div>
-                  <div className="flex space-x-3">
-                    <Link to={`/farmer/listing/${listing.id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"><Eye className="h-4 w-4 mr-2" />View Details</Link>
-                    <button onClick={() => handleEdit(listing)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"><Edit2 className="h-4 w-4 mr-2" />Edit</button>
-                    <button onClick={() => handleDelete(listing.id)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"><Trash2 className="h-4 w-4 mr-2" />Delete</button>
-                  </div>
-                  <div className="flex space-x-3">
-                    <Link to={`/farmer/listing/${listing.id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"><Eye className="h-4 w-4 mr-2" />View Details</Link>
-                    <button onClick={() => handleEdit(listing)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"><Edit2 className="h-4 w-4 mr-2" />Edit</button>
-                    <button onClick={() => handleDelete(listing.id)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"><Trash2 className="h-4 w-4 mr-2" />Delete</button>
-                  </div>
                 </div>
               )}
             </div>

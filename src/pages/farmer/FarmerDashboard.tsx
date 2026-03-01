@@ -286,9 +286,12 @@ const FarmerDashboard = () => {
               <Link to="/warehouses" className="block w-full btn-secondary text-center bg-purple-600 hover:bg-purple-700 text-white">
                 Check Warehouse Availability
               </Link>
-              <button className="w-full btn-secondary">
-                View Market Prices
-              </button>
+              <Link to="/vehicles" className="block w-full btn-secondary text-center bg-orange-600 hover:bg-orange-700 text-white">
+                Browse Transport Vehicles
+              </Link>
+              <Link to="/my-vehicle-bookings" className="block w-full btn-secondary text-center bg-indigo-600 hover:bg-indigo-700 text-white">
+                My Vehicle Bookings
+              </Link>
             </div>
           </div>
         </div>

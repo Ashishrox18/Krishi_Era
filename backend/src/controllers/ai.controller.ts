@@ -65,18 +65,66 @@ export class AIController {
         location
       } = req.body;
 
-      // Build AI prompt for selling strategy
-      const prompt = `You are an agricultural market expert. Analyze the following crop selling scenario and provide a strategic recommendation:
+      // Try Groq first (free), fallback to Ollama, then Bedrock
+      const useGroq = process.env.USE_GROQ === 'true';
+      const useOllama = process.env.USE_OLLAMA !== 'false';
+      
+      let strategy;
+      
+      if (useGroq) {
+        const { groqService } = await import('../services/ai/groq.service');
+        strategy = await groqService.getSellingStrategy({
+          cropType,
+          expectedYield,
+          yieldUnit,
+          harvestMonth,
+          currentMarketPrice,
+          storageAvailable,
+          location
+        });
+      } else if (useOllama) {
+        const prompt = this.buildSellingStrategyPrompt({
+          cropType,
+          expectedYield,
+          yieldUnit,
+          harvestMonth,
+          currentMarketPrice,
+          storageAvailable,
+          location
+        });
+        strategy = await ollamaService.generateSellingStrategy(prompt);
+      } else {
+        const prompt = this.buildSellingStrategyPrompt({
+          cropType,
+          expectedYield,
+          yieldUnit,
+          harvestMonth,
+          currentMarketPrice,
+          storageAvailable,
+          location
+        });
+        strategy = await bedrockService.generateSellingStrategy(prompt);
+      }
+      
+      res.json(strategy);
+    } catch (error) {
+      console.error('Selling strategy error:', error);
+      res.status(500).json({ error: 'Failed to generate selling strategy' });
+    }
+  }
+
+  private buildSellingStrategyPrompt(data: any): string {
+    return `You are an agricultural market expert. Analyze the following crop selling scenario and provide a strategic recommendation:
 
 Crop Details:
-- Crop: ${cropType}
-- Expected Yield: ${expectedYield} ${yieldUnit}
-- Harvest Month: ${harvestMonth}
-- Current Market Price: ${currentMarketPrice ? `₹${currentMarketPrice}/${yieldUnit}` : 'Not provided'}
-- Storage Available: ${storageAvailable ? 'Yes' : 'No'}
-- Location: ${location || 'Not specified'}
+- Crop: ${data.cropType}
+- Expected Yield: ${data.expectedYield} ${data.yieldUnit}
+- Harvest Month: ${data.harvestMonth}
+- Current Market Price: ${data.currentMarketPrice ? `₹${data.currentMarketPrice}/${data.yieldUnit}` : 'Not provided'}
+- Storage Available: ${data.storageAvailable ? 'Yes' : 'No'}
+- Location: ${data.location || 'Not specified'}
 
-Based on historical price trends, seasonal patterns, and market dynamics for ${cropType}, provide:
+Based on historical price trends, seasonal patterns, and market dynamics for ${data.cropType}, provide:
 
 1. A clear recommendation on what percentage to sell immediately vs store for later
 2. Price predictions for the next 1, 2, and 3 months
@@ -103,22 +151,6 @@ Respond ONLY with valid JSON in this exact structure:
   "confidence": 82
 }
 
-Provide realistic, data-driven recommendations based on typical market behavior for ${cropType} in India. Use actual numbers and be specific.`;
-
-      // Try Ollama first (free, local), fallback to Bedrock if needed
-      const useOllama = process.env.USE_OLLAMA !== 'false';
-      
-      let strategy;
-      if (useOllama) {
-        strategy = await ollamaService.generateSellingStrategy(prompt);
-      } else {
-        strategy = await bedrockService.generateSellingStrategy(prompt);
-      }
-      
-      res.json(strategy);
-    } catch (error) {
-      console.error('Selling strategy error:', error);
-      res.status(500).json({ error: 'Failed to generate selling strategy' });
-    }
+Provide realistic, data-driven recommendations based on typical market behavior for ${data.cropType} in India. Use actual numbers and be specific.`;
   }
 }

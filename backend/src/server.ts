@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import path from 'path';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -17,7 +18,12 @@ import aiRoutes from './routes/ai.routes';
 import quotesRoutes from './routes/quotes.routes';
 import offersRoutes from './routes/offers.routes';
 
-dotenv.config();
+// Load environment variables from backend/.env
+const envPath = path.resolve(__dirname, '../.env');
+console.log('🔍 Loading .env from:', envPath);
+dotenv.config({ path: envPath });
+console.log('🔍 After dotenv - USE_GROQ:', process.env.USE_GROQ);
+console.log('🔍 After dotenv - GROQ_API_KEY exists:', !!process.env.GROQ_API_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3000;

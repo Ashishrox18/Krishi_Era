@@ -1,4 +1,4 @@
-import { Search, MapPin, Package, Calendar, Plus, TrendingUp } from 'lucide-react'
+import { Search, MapPin, Package, Calendar, Plus, TrendingUp, Truck } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { apiService } from '../../services/api'
@@ -318,11 +318,22 @@ const Procurement = () => {
             <p className="font-semibold text-gray-900">Check Warehouse Availability</p>
             <p className="text-sm text-gray-600">Find storage for your produce</p>
           </Link>
-          <button className="p-4 bg-white rounded-lg hover:shadow-md transition text-center">
-            <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
-            <p className="font-semibold text-gray-900">View Market Trends</p>
-            <p className="text-sm text-gray-600">Analyze price movements</p>
-          </button>
+          <Link
+            to="/vehicles"
+            className="p-4 bg-white rounded-lg hover:shadow-md transition text-center"
+          >
+            <Truck className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+            <p className="font-semibold text-gray-900">Browse Transport Vehicles</p>
+            <p className="text-sm text-gray-600">Find vehicles for transportation</p>
+          </Link>
+          <Link
+            to="/my-vehicle-bookings"
+            className="p-4 bg-white rounded-lg hover:shadow-md transition text-center"
+          >
+            <Calendar className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
+            <p className="font-semibold text-gray-900">My Vehicle Bookings</p>
+            <p className="text-sm text-gray-600">Track your transport bookings</p>
+          </Link>
         </div>
       </div>
     </div>

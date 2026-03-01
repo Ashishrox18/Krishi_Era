@@ -23,11 +23,14 @@ import BuyerProcurementRequestDetail from './pages/buyer/ProcurementRequestDetai
 import BuyerViewFarmerListing from './pages/buyer/FarmerListingDetail'
 import FarmerProcurementRequestDetail from './pages/farmer/ProcurementRequestDetail'
 import TransporterDashboard from './pages/transporter/TransporterDashboard'
+import ListVehicle from './pages/transporter/ListVehicle'
 import RouteOptimization from './pages/transporter/RouteOptimization'
 import StorageDashboard from './pages/storage/StorageDashboard'
 import CapacityManagement from './pages/storage/CapacityManagement'
 import ListWarehouse from './pages/storage/ListWarehouse'
 import BrowseWarehouses from './pages/BrowseWarehouses'
+import BrowseVehicles from './pages/BrowseVehicles'
+import MyVehicleBookings from './pages/MyVehicleBookings'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import SystemMonitoring from './pages/admin/SystemMonitoring'
 
@@ -140,6 +143,11 @@ function App() {
                 <TransporterDashboard />
               </ProtectedRoute>
             } />
+            <Route path="list-vehicle" element={
+              <ProtectedRoute allowedRoles={['transporter', 'admin']}>
+                <ListVehicle />
+              </ProtectedRoute>
+            } />
             <Route path="routes" element={
               <ProtectedRoute allowedRoles={['transporter', 'admin']}>
                 <RouteOptimization />
@@ -170,6 +178,18 @@ function App() {
           <Route path="warehouses" element={
             <ProtectedRoute allowedRoles={['farmer', 'buyer', 'admin']}>
               <BrowseWarehouses />
+            </ProtectedRoute>
+          } />
+
+          <Route path="vehicles" element={
+            <ProtectedRoute allowedRoles={['farmer', 'buyer', 'storage', 'admin']}>
+              <BrowseVehicles />
+            </ProtectedRoute>
+          } />
+
+          <Route path="my-vehicle-bookings" element={
+            <ProtectedRoute allowedRoles={['farmer', 'buyer', 'storage', 'admin']}>
+              <MyVehicleBookings />
             </ProtectedRoute>
           } />
           

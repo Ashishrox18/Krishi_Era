@@ -326,6 +326,58 @@ class ApiService {
     return response.data;
   }
 
+  async listVehicle(data: any) {
+    const response = await this.client.post('/transporter/vehicles', data);
+    return response.data;
+  }
+
+  async getMyVehicles() {
+    const response = await this.client.get('/transporter/vehicles');
+    return response.data;
+  }
+
+  async getTransporterStats() {
+    const response = await this.client.get('/transporter/stats');
+    return response.data;
+  }
+
+  async updateVehicle(id: string, data: any) {
+    const response = await this.client.put(`/transporter/vehicles/${id}`, data);
+    return response.data;
+  }
+
+  async deleteVehicle(id: string) {
+    const response = await this.client.delete(`/transporter/vehicles/${id}`);
+    return response.data;
+  }
+
+  async getAvailableVehicles(filters?: any) {
+    const response = await this.client.get('/transporter/vehicles/available', {
+      params: filters,
+    });
+    return response.data;
+  }
+
+  async bookVehicle(data: any) {
+    const response = await this.client.post('/transporter/bookings', data);
+    return response.data;
+  }
+
+  async getMyVehicleBookings() {
+    const response = await this.client.get('/transporter/my-bookings');
+    return response.data;
+  }
+
+  async getTransporterBookings() {
+    const response = await this.client.get('/transporter/bookings');
+    return response.data;
+  }
+
+  async updateBookingStatus(id: string, status: string) {
+    const response = await this.client.put(`/transporter/bookings/${id}/status`, { status });
+    return response.data;
+  }
+
   // Storage APIs
   async getStorageDashboard() {
     const response = await this.client.get('/storage/dashboard');
