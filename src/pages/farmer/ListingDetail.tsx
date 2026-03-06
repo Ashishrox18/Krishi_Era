@@ -91,6 +91,21 @@ const ListingDetail = () => {
   }
 
   const handleAward = () => {
+    // Check if user is authorized to award
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    
+    // Only the farmer (owner) can award their listing
+    if (listing?.farmerId !== user.id) {
+      alert('Only the listing owner can award this listing')
+      return
+    }
+
+    // Check if already awarded
+    if (listing?.status === 'awarded') {
+      alert('This listing has already been awarded')
+      return
+    }
+
     navigate(`/award/listing/${id}`)
   }
 
@@ -133,13 +148,16 @@ const ListingDetail = () => {
               <MessageSquare className="h-4 w-4" />
               <span>Negotiate</span>
             </button>
-            <button
-              onClick={handleAward}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
-              <Award className="h-4 w-4" />
-              <span>Award</span>
-            </button>
+            {/* Only show award button to listing owner */}
+            {listing.farmerId === JSON.parse(localStorage.getItem('user') || '{}').id && (
+              <button
+                onClick={handleAward}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+              >
+                <Award className="h-4 w-4" />
+                <span>Award</span>
+              </button>
+            )}
           </div>
         )}
       </div>

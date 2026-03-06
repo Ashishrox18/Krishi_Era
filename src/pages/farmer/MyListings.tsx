@@ -16,6 +16,7 @@ const MyListings = () => {
   const loadListings = async () => {
     try {
       const response = await apiService.getMyPurchaseRequests()
+      console.log('Farmer listings response:', response)
       setListings(response.requests || [])
     } catch (error) {
       console.error('Failed to load listings:', error)

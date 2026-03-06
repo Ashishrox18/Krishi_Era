@@ -5,8 +5,9 @@ import { rekognitionService } from '../services/aws/rekognition.service';
 import { bedrockService } from '../services/aws/bedrock.service';
 import { snsService } from '../services/aws/sns.service';
 import { v4 as uuidv4 } from 'uuid';
+import { NotificationsController } from './notifications.controller';
 
-export class BuyerController {
+export class BuyerController { 
   async getDashboard(req: AuthRequest, res: Response) {
     try {
       const userId = req.user!.id;
@@ -65,7 +66,9 @@ export class BuyerController {
 
       // Filter for farmer listings (have farmerId and status is open or released)
       let listings = allItems.filter((item: any) => 
-        item.farmerId && (item.status === 'open' || item.status === 'released' || item.status === 'in_progress' || item.status === 'negotiating')
+        item.farmerId && 
+        (item.status === 'open' || item.status === 'released' || item.status === 'in_progress' || item.status === 'negotiating') &&
+        item.cropType // Ensure cropType exists
       );
 
       console.log(`Filtered farmer listings: ${listings.length}`);
@@ -126,12 +129,27 @@ export class BuyerController {
         status: 'released',
         quotesCount: 0,
         currentBestQuote: 0,
+        type: 'procurement_request', // Add type for filtering
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         expiresAt: requiredBy
       };
 
       await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, procurementRequest);
+
+      // Send notification to all farmers
+      try {
+        await NotificationsController.sendNotificationToRole('farmer', {
+          title: 'New Procurement Request',
+          message: `New request for ${quantity} ${quantityUnit} of ${cropType} at ₹${maxPricePerUnit}/${quantityUnit}`,
+          type: 'procurement_request',
+          relatedId: procurementRequest.id,
+          link: `/farmer/browse-procurement-requests`
+        });
+      } catch (notificationError) {
+        console.error('Failed to send notifications:', notificationError);
+        // Don't fail the request if notifications fail
+      }
 
       res.status(201).json({ procurementRequest });
     } catch (error) {
@@ -144,12 +162,16 @@ export class BuyerController {
     try {
       const userId = req.user!.id;
       
-      const requests = await dynamoDBService.scan(
-        process.env.DYNAMODB_ORDERS_TABLE!,
-        'buyerId = :buyerId',
-        { ':buyerId': userId }
+      // Get all items from orders table
+      const allItems = await dynamoDBService.scan(process.env.DYNAMODB_ORDERS_TABLE!);
+      
+      // Filter for buyer's own procurement requests (have buyerId matching current user)
+      const requests = allItems.filter((item: any) => 
+        item.buyerId === userId
       );
 
+      console.log(`Found ${requests.length} buyer procurement requests for user ${userId}`);
+      
       res.json({ requests });
     } catch (error) {
       console.error('Get procurement requests error:', error);
@@ -199,7 +221,7 @@ export class BuyerController {
         return res.status(404).json({ error: 'Listing not found' });
       }
 
-      if (listing.status !== 'open') {
+      if (listing.status !== 'open' && listing.status !== 'released') {
         return res.status(400).json({ error: 'This listing is no longer accepting offers' });
       }
 
@@ -501,16 +523,51 @@ export class BuyerController {
         return res.status(403).json({ error: 'Unauthorized' });
       }
 
+      // Get user details
+      const user = await dynamoDBService.get(process.env.DYNAMODB_USERS_TABLE!, { id: userId });
+      const userName = user?.name || 'Buyer';
+
+      // Initialize negotiation history if it doesn't exist
+      const negotiationHistory = request.negotiationHistory || [];
+      
+      // Add new negotiation entry
+      negotiationHistory.push({
+        id: uuidv4(),
+        user: 'buyer',
+        userId: userId,
+        userName: userName,
+        price: updates.maxPricePerUnit || request.maxPricePerUnit,
+        quantity: updates.quantity || request.quantity,
+        message: updates.negotiationNotes || 'Updated procurement terms',
+        timestamp: new Date().toISOString(),
+        type: 'counter_offer'
+      });
+
       const updated = {
         ...request,
         ...updates,
         status: 'negotiating',
+        negotiationHistory,
         updatedAt: new Date().toISOString()
       };
 
       await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, updated);
 
-      res.json({ request: updated });
+      // Send notification to all farmers
+      try {
+        await NotificationsController.sendNotificationToRole('farmer', {
+          title: 'Procurement Request Updated',
+          message: `${request.cropType} procurement request has been updated by buyer. New max price: ₹${updates.maxPricePerUnit || request.maxPricePerUnit}/${request.quantityUnit}`,
+          type: 'procurement_request',
+          relatedId: id,
+          link: `/farmer/procurement-request/${id}`
+        });
+      } catch (notificationError) {
+        console.error('Failed to send notification:', notificationError);
+        // Don't fail the request if notifications fail
+      }
+
+      res.json({ success: true, request: updated });
     } catch (error) {
       console.error('Negotiate procurement error:', error);
       res.status(500).json({ error: 'Failed to negotiate procurement' });

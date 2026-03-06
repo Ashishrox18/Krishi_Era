@@ -5,6 +5,12 @@ import { OffersController } from '../controllers/offers.controller';
 const router = Router();
 const controller = new OffersController();
 
+// Submit offer (buyer)
+router.post('/', authenticate, controller.submitOffer);
+
+// Get offers for listing
+router.get('/listing/:listingId', authenticate, controller.getOffersForListing);
+
 // Update offer (buyer)
 router.put('/:offerId', authenticate, controller.updateOffer);
 

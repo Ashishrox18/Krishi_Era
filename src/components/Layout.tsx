@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import NotificationBell from './NotificationBell'
+import NotificationTester from './NotificationTester'
 
 const Layout = () => {
   const location = useLocation()
@@ -211,6 +212,9 @@ const Layout = () => {
           </p>
         </div>
       </footer>
+
+      {/* Development Tools */}
+      <NotificationTester />
     </div>
   )
 }

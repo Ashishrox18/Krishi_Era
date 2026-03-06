@@ -1,9 +1,12 @@
 import { Request, Response } from 'express';
-import { DynamoDBService } from '../services/aws/dynamodb.service';
+import { dynamoDBService } from '../services/aws/dynamodb.service';
 import { v4 as uuidv4 } from 'uuid';
-import { logger } from '../utils/logger';
+import { NotificationsController } from './notifications.controller';
+import { InvoicesController } from './invoices.controller';
 
-const dynamodb = new DynamoDBService();
+// Use the singleton instance and proper table names
+const QUOTES_TABLE = process.env.DYNAMODB_ORDERS_TABLE!; // Using orders table for quotes
+const ORDERS_TABLE = process.env.DYNAMODB_ORDERS_TABLE!;
 
 export class QuotesController {
   // Submit a quote for a procurement request
@@ -23,15 +26,34 @@ export class QuotesController {
         message,
         status: 'pending',
         negotiationHistory: [],
+        type: 'quote', // Add type to distinguish from other records
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
-      await dynamodb.put('QUOTES', quote);
+      await dynamoDBService.put(QUOTES_TABLE, quote);
+
+      // Get the procurement request to notify the buyer
+      try {
+        const request = await dynamoDBService.get(ORDERS_TABLE, { id: requestId });
+        if (request && request.buyerId) {
+          await NotificationsController.createNotification({
+            userId: request.buyerId,
+            title: 'New Quote Received',
+            message: `${(req as any).user.name} submitted a quote of ₹${pricePerUnit}/${quantityUnit} for your ${request.cropType} request`,
+            type: 'quote',
+            relatedId: requestId,
+            link: `/buyer/procurement-requests/${requestId}`
+          });
+        }
+      } catch (notificationError) {
+        console.error('Failed to send notification:', notificationError);
+        // Don't fail the request if notifications fail
+      }
 
       res.json({ success: true, quote });
     } catch (error) {
-      logger.error('Error submitting quote:', error);
+      console.error('Error submitting quote:', error);
       res.status(500).json({ error: 'Failed to submit quote' });
     }
   }
@@ -41,13 +63,17 @@ export class QuotesController {
     try {
       const { requestId } = req.params;
 
-      const quotes = await dynamodb.query('QUOTES', 'requestId = :requestId', {
-        ':requestId': requestId
-      });
+      // Scan for quotes with the specific requestId and type
+      const quotes = await dynamoDBService.scan(
+        QUOTES_TABLE,
+        'requestId = :requestId AND #type = :type',
+        { ':requestId': requestId, ':type': 'quote' },
+        { '#type': 'type' }
+      );
 
       res.json({ success: true, quotes });
     } catch (error) {
-      logger.error('Error getting quotes:', error);
+      console.error('Error getting quotes:', error);
       res.status(500).json({ error: 'Failed to get quotes' });
     }
   }
@@ -59,7 +85,7 @@ export class QuotesController {
       const { pricePerUnit, quantity, message } = req.body;
       const farmerId = (req as any).user.id;
 
-      const quote = await dynamodb.get('QUOTES', { id: quoteId });
+      const quote = await dynamoDBService.get(QUOTES_TABLE, { id: quoteId });
 
       if (!quote || quote.farmerId !== farmerId) {
         return res.status(404).json({ error: 'Quote not found' });
@@ -73,11 +99,11 @@ export class QuotesController {
         updatedAt: new Date().toISOString()
       };
 
-      await dynamodb.put('QUOTES', updatedQuote);
+      await dynamoDBService.put(QUOTES_TABLE, updatedQuote);
 
       res.json({ success: true, quote: updatedQuote });
     } catch (error) {
-      logger.error('Error updating quote:', error);
+      console.error('Error updating quote:', error);
       res.status(500).json({ error: 'Failed to update quote' });
     }
   }
@@ -88,14 +114,14 @@ export class QuotesController {
       const { quoteId } = req.params;
       const buyerId = (req as any).user.id;
 
-      const quote = await dynamodb.get('QUOTES', { id: quoteId });
+      const quote = await dynamoDBService.get(QUOTES_TABLE, { id: quoteId });
 
       if (!quote) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
       // Get the procurement request to verify buyer ownership
-      const request = await dynamodb.get('ORDERS', { id: quote.requestId });
+      const request = await dynamoDBService.get(ORDERS_TABLE, { id: quote.requestId });
       if (!request || request.buyerId !== buyerId) {
         return res.status(403).json({ error: 'Unauthorized' });
       }
@@ -108,19 +134,57 @@ export class QuotesController {
         updatedAt: new Date().toISOString()
       };
 
-      await dynamodb.put('QUOTES', updatedQuote);
+      await dynamoDBService.put(QUOTES_TABLE, updatedQuote);
 
       // Update procurement request status
-      await dynamodb.put('ORDERS', {
+      await dynamoDBService.put(ORDERS_TABLE, {
         ...request,
         status: 'awarded',
         awardedQuoteId: quoteId,
         updatedAt: new Date().toISOString()
       });
 
+      // Generate invoice for the awarded contract
+      try {
+        const invoice = await InvoicesController.generateInvoiceForAward({
+          type: 'procurement',
+          relatedId: request.id,
+          buyerId: request.buyerId,
+          farmerId: quote.farmerId,
+          cropType: request.cropType,
+          quantity: quote.quantity,
+          unit: quote.quantityUnit,
+          pricePerUnit: quote.pricePerUnit,
+          totalAmount: quote.quantity * quote.pricePerUnit
+        });
+
+        // Send notifications about the award and invoice
+        await Promise.all([
+          NotificationsController.createNotification({
+            userId: quote.farmerId,
+            title: 'Quote Awarded!',
+            message: `Your quote for ${request.cropType} has been awarded. Invoice #${invoice.invoiceNumber} generated.`,
+            type: 'award',
+            relatedId: request.id,
+            link: `/farmer/invoices/${invoice.id}`
+          }),
+          NotificationsController.createNotification({
+            userId: request.buyerId,
+            title: 'Contract Awarded',
+            message: `Contract awarded to ${quote.farmerName}. Invoice #${invoice.invoiceNumber} created.`,
+            type: 'award',
+            relatedId: request.id,
+            link: `/buyer/invoices/${invoice.id}`
+          })
+        ]);
+      } catch (invoiceError) {
+        console.error('Failed to generate invoice or send notifications:', invoiceError);
+        // Don't fail the quote acceptance if invoice generation fails
+      }
+
       res.json({ success: true, quote: updatedQuote });
     } catch (error) {
-      logger.error('Error accepting quote:', error);
+      console.error('Error accepting quote:', error);
       res.status(500).json({ error: 'Failed to accept quote' });
     }
   }
@@ -132,14 +196,14 @@ export class QuotesController {
       const { pricePerUnit, message } = req.body;
       const buyerId = (req as any).user.id;
 
-      const quote = await dynamodb.get('QUOTES', { id: quoteId });
+      const quote = await dynamoDBService.get(QUOTES_TABLE, { id: quoteId });
 
       if (!quote) {
         return res.status(404).json({ error: 'Quote not found' });
       }
 
       // Get the procurement request to verify buyer ownership
-      const request = await dynamodb.get('ORDERS', { id: quote.requestId });
+      const request = await dynamoDBService.get(ORDERS_TABLE, { id: quote.requestId });
       if (!request || request.buyerId !== buyerId) {
         return res.status(403).json({ error: 'Unauthorized' });
       }
@@ -161,10 +225,10 @@ export class QuotesController {
         updatedAt: new Date().toISOString()
       };
 
-      await dynamodb.put('QUOTES', updatedQuote);
+      await dynamoDBService.put(QUOTES_TABLE, updatedQuote);
 
       // Update procurement request status to negotiating
-      await dynamodb.put('ORDERS', {
+      await dynamoDBService.put(ORDERS_TABLE, {
         ...request,
         status: 'negotiating',
         updatedAt: new Date().toISOString()
@@ -172,7 +236,7 @@ export class QuotesController {
 
       res.json({ success: true, quote: updatedQuote });
     } catch (error) {
-      logger.error('Error sending counter offer:', error);
+      console.error('Error sending counter offer:', error);
       res.status(500).json({ error: 'Failed to send counter offer' });
     }
   }
@@ -184,7 +248,7 @@ export class QuotesController {
       const { pricePerUnit } = req.body;
       const farmerId = (req as any).user.id;
 
-      const quote = await dynamodb.get('QUOTES', { id: quoteId });
+      const quote = await dynamoDBService.get(QUOTES_TABLE, { id: quoteId });
 
       if (!quote || quote.farmerId !== farmerId) {
         return res.status(404).json({ error: 'Quote not found' });
@@ -199,12 +263,12 @@ export class QuotesController {
         updatedAt: new Date().toISOString()
       };
 
-      await dynamodb.put('QUOTES', updatedQuote);
+      await dynamoDBService.put(QUOTES_TABLE, updatedQuote);
 
       // Update procurement request status to awarded
-      const request = await dynamodb.get('ORDERS', { id: quote.requestId });
+      const request = await dynamoDBService.get(ORDERS_TABLE, { id: quote.requestId });
       if (request) {
-        await dynamodb.put('ORDERS', {
+        await dynamoDBService.put(ORDERS_TABLE, {
           ...request,
           status: 'awarded',
           awardedQuoteId: quoteId,
@@ -214,7 +278,7 @@ export class QuotesController {
 
       res.json({ success: true, quote: updatedQuote });
     } catch (error) {
-      logger.error('Error accepting counter offer:', error);
+      console.error('Error accepting counter offer:', error);
       res.status(500).json({ error: 'Failed to accept counter offer' });
     }
   }

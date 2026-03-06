@@ -292,6 +292,9 @@ const FarmerDashboard = () => {
               <Link to="/my-vehicle-bookings" className="block w-full btn-secondary text-center bg-indigo-600 hover:bg-indigo-700 text-white">
                 My Vehicle Bookings
               </Link>
+              <Link to="/invoices" className="block w-full btn-secondary text-center bg-gray-600 hover:bg-gray-700 text-white">
+                View Invoices
+              </Link>
             </div>
           </div>
         </div>

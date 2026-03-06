@@ -7,7 +7,7 @@ import path from 'path';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 
-// Route imports
+// Route imports 
 import authRoutes from './routes/auth.routes';
 import farmerRoutes from './routes/farmer.routes';
 import buyerRoutes from './routes/buyer.routes';
@@ -17,6 +17,11 @@ import adminRoutes from './routes/admin.routes';
 import aiRoutes from './routes/ai.routes';
 import quotesRoutes from './routes/quotes.routes';
 import offersRoutes from './routes/offers.routes';
+import notificationsRoutes from './routes/notifications.routes';
+import invoicesRoutes from './routes/invoices.routes';
+import negotiationRoutes from './routes/negotiation.routes';
+import warehousesRoutes from './routes/warehouses.routes';
+import vehiclesRoutes from './routes/vehicles.routes';
 
 // Load environment variables from backend/.env
 const envPath = path.resolve(__dirname, '../.env');
@@ -50,6 +55,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/quotes', quotesRoutes);
 app.use('/api/offers', offersRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/invoices', invoicesRoutes);
+app.use('/api/negotiation', negotiationRoutes);
+app.use('/api/warehouses', warehousesRoutes);
+app.use('/api/vehicles', vehiclesRoutes);
 
 // Error handling
 app.use(errorHandler);

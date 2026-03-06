@@ -5,6 +5,7 @@ import { bedrockService } from '../services/aws/bedrock.service';
 import { groqService } from '../services/ai/groq.service';
 import { snsService } from '../services/aws/sns.service';
 import { v4 as uuidv4 } from 'uuid';
+import { NotificationsController } from './notifications.controller';
 
 export class FarmerController {
   async getDashboard(req: AuthRequest, res: Response) {
@@ -220,23 +221,65 @@ export class FarmerController {
     try {
       const { cropId } = req.params;
       const userId = req.user!.id;
-      const { quantity, price, quality } = req.body;
+      const {
+        quantity,
+        quantityUnit = 'kg',
+        minimumPrice,
+        pickupLocation,
+        description,
+        availableFrom,
+        availableTill
+      } = req.body;
 
-      const listing = {
+      // Get crop details
+      const crop = await dynamoDBService.get(process.env.DYNAMODB_CROPS_TABLE!, { id: cropId });
+      if (!crop) {
+        return res.status(404).json({ error: 'Crop not found' });
+      }
+
+      const purchaseRequest = {
         id: uuidv4(),
         farmerId: userId,
         cropId,
-        quantity,
-        price,
-        quality,
-        status: 'active',
+        cropType: crop.name || 'Unknown Crop',
+        variety: crop.variety || '',
+        quantity: parseFloat(quantity),
+        quantityUnit,
+        qualityGrade: 'A', // Default grade
+        minimumPrice: parseFloat(minimumPrice),
+        expectedPrice: parseFloat(minimumPrice) * 1.1, // 10% higher than minimum
+        pickupLocation,
+        availableFrom: availableFrom || new Date().toISOString(),
+        availableTill,
+        description: description || '',
+        status: 'released',
+        currentBestOffer: 0,
+        quotesCount: 0,
+        type: 'farmer_listing', // Add type for filtering
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        expiresAt: availableTill || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       };
 
-      await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, listing);
+      await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, purchaseRequest);
 
-      res.status(201).json({ listing });
+      // Send notification to all buyers
+      try {
+        await NotificationsController.sendNotificationToRole('buyer', {
+          title: 'New Produce Listed',
+          message: `${quantity} ${quantityUnit} of ${purchaseRequest.cropType} available at ₹${minimumPrice}/${quantityUnit} from ${pickupLocation}`,
+          type: 'farmer_listing',
+          relatedId: purchaseRequest.id,
+          link: `/buyer/procurement`
+        });
+      } catch (notificationError) {
+        console.error('Failed to send notifications:', notificationError);
+        // Don't fail the request if notifications fail
+      }
+
+      res.status(201).json({ purchaseRequest });
     } catch (error) {
+      console.error('List for sale error:', error);
       res.status(500).json({ error: 'Failed to list for sale' });
     }
   }
@@ -319,6 +362,7 @@ export class FarmerController {
         status: 'released',
         currentBestOffer: 0,
         quotesCount: 0,
+        type: 'farmer_listing', // Add type for filtering
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         expiresAt: availableTill || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -326,15 +370,19 @@ export class FarmerController {
 
       await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, purchaseRequest);
 
-      // Send notification (optional) - commented out until SNS method is implemented
-      // try {
-      //   await snsService.publishNotification(
-      //     `New produce listed: ${quantity} ${quantityUnit} of ${cropType} at ${pickupLocation}`,
-      //     { type: 'new_listing', requestId: purchaseRequest.id }
-      //   );
-      // } catch (notifError) {
-      //   console.error('Failed to send notification:', notifError);
-      // }
+      // Send notification to all buyers
+      try {
+        await NotificationsController.sendNotificationToRole('buyer', {
+          title: 'New Produce Listed',
+          message: `${quantity} ${quantityUnit} of ${cropType} available at ₹${minimumPrice}/${quantityUnit} from ${pickupLocation}`,
+          type: 'farmer_listing',
+          relatedId: purchaseRequest.id,
+          link: `/buyer/procurement`
+        });
+      } catch (notificationError) {
+        console.error('Failed to send notifications:', notificationError);
+        // Don't fail the request if notifications fail
+      }
 
       res.status(201).json({ purchaseRequest });
     } catch (error) {
@@ -347,12 +395,16 @@ export class FarmerController {
     try {
       const userId = req.user!.id;
       
-      const requests = await dynamoDBService.scan(
-        process.env.DYNAMODB_ORDERS_TABLE!,
-        'farmerId = :farmerId',
-        { ':farmerId': userId }
+      // Get all items from orders table
+      const allItems = await dynamoDBService.scan(process.env.DYNAMODB_ORDERS_TABLE!);
+      
+      // Filter for farmer's own listings (have farmerId matching current user)
+      const requests = allItems.filter((item: any) => 
+        item.farmerId === userId
       );
 
+      console.log(`Found ${requests.length} farmer listings for user ${userId}`);
+      
       res.json({ requests });
     } catch (error) {
       console.error('Get purchase requests error:', error);
@@ -540,16 +592,51 @@ export class FarmerController {
         return res.status(403).json({ error: 'Unauthorized' });
       }
 
+      // Get user details
+      const user = await dynamoDBService.get(process.env.DYNAMODB_USERS_TABLE!, { id: userId });
+      const userName = user?.name || 'Farmer';
+
+      // Initialize negotiation history if it doesn't exist
+      const negotiationHistory = listing.negotiationHistory || [];
+      
+      // Add new negotiation entry
+      negotiationHistory.push({
+        id: uuidv4(),
+        user: 'farmer',
+        userId: userId,
+        userName: userName,
+        price: updates.minimumPrice || listing.minimumPrice,
+        quantity: updates.quantity || listing.quantity,
+        message: updates.negotiationNotes || 'Updated listing terms',
+        timestamp: new Date().toISOString(),
+        type: 'counter_offer'
+      });
+
       const updated = {
         ...listing,
         ...updates,
         status: 'negotiating',
+        negotiationHistory,
         updatedAt: new Date().toISOString()
       };
 
       await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, updated);
 
-      res.json({ listing: updated });
+      // Send notification to all buyers who have made offers or shown interest
+      try {
+        await NotificationsController.sendNotificationToRole('buyer', {
+          title: 'Listing Updated',
+          message: `${listing.cropType} listing has been updated by farmer. New price: ₹${updates.minimumPrice || listing.minimumPrice}/${listing.quantityUnit}`,
+          type: 'farmer_listing',
+          relatedId: id,
+          link: `/buyer/farmer-listing/${id}`
+        });
+      } catch (notificationError) {
+        console.error('Failed to send notification:', notificationError);
+        // Don't fail the request if notifications fail
+      }
+
+      res.json({ success: true, listing: updated });
     } catch (error) {
       console.error('Negotiate listing error:', error);
       res.status(500).json({ error: 'Failed to negotiate listing' });

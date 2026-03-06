@@ -62,7 +62,7 @@ const BuyerDashboard = () => {
       </div>
 
       {/* Quick Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Link
           to="/buyer/create-procurement-request"
           className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105"
@@ -99,6 +99,19 @@ const BuyerDashboard = () => {
               <p className="text-purple-100 text-sm">View and manage your procurement requests and quotes</p>
             </div>
             <Package className="h-12 w-12 opacity-80" />
+          </div>
+        </Link>
+
+        <Link
+          to="/invoices"
+          className="bg-gradient-to-r from-gray-500 to-gray-600 rounded-lg shadow-lg p-6 text-white hover:from-gray-600 hover:to-gray-700 transition-all transform hover:scale-105"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-semibold mb-2">View Invoices</h3>
+              <p className="text-gray-100 text-sm">Manage your invoices and payment records</p>
+            </div>
+            <ShoppingCart className="h-12 w-12 opacity-80" />
           </div>
         </Link>
       </div>

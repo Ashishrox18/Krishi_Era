@@ -1,0 +1,110 @@
+[
+  {
+    "id": "a80a0189-440f-4f77-9242-65f681b93375",
+    "userId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
+    "name": "Test Wheat Crop",
+    "variety": "Durum Wheat",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 5,
+    "location": "Test Farm, Karnataka",
+    "createdAt": "2026-03-05T18:49:18.387Z",
+    "status": "planted"
+  },
+  {
+    "id": "1804b2bf-d1e0-495e-990f-86b4048bdc53",
+    "userId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
+    "name": "Notification Test Wheat",
+    "variety": "Premium Wheat",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 10,
+    "location": "Notification Test Farm, Karnataka",
+    "createdAt": "2026-03-05T18:50:28.363Z",
+    "status": "planted"
+  },
+  {
+    "id": "de3515db-629f-456d-acc1-53568f0a9d4b",
+    "userId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
+    "name": "Notification Test Wheat",
+    "variety": "Premium Wheat",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 10,
+    "location": "Notification Test Farm, Karnataka",
+    "createdAt": "2026-03-05T18:51:15.683Z",
+    "status": "planted"
+  },
+  {
+    "id": "87a0c252-1b9e-439b-8602-b7db3857a26c",
+    "userId": "bb1c1266-3584-4a08-81eb-66ac57c806cd",
+    "name": "Negotiation Test Crop",
+    "variety": "Premium Rice",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 15,
+    "location": "Negotiation Test Farm",
+    "createdAt": "2026-03-05T19:11:42.984Z",
+    "status": "planted"
+  },
+  {
+    "id": "e57cf69f-655f-4d4f-9190-7f2b300739c3",
+    "userId": "bb1c1266-3584-4a08-81eb-66ac57c806cd",
+    "name": "Test Crop for Fixes",
+    "variety": "Premium Quality",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 20,
+    "location": "Test Farm Location",
+    "createdAt": "2026-03-05T19:33:09.960Z",
+    "status": "planted"
+  },
+  {
+    "id": "ae5eb78b-f073-4724-ae26-b40cfb2e8f11",
+    "userId": "bb1c1266-3584-4a08-81eb-66ac57c806cd",
+    "name": "Test Crop for Fixes",
+    "variety": "Premium Quality",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 20,
+    "location": "Test Farm Location",
+    "createdAt": "2026-03-05T19:35:47.007Z",
+    "status": "planted"
+  },
+  {
+    "id": "4a38fe9b-5a1e-49e0-9908-e059d74e18c0",
+    "userId": "bb1c1266-3584-4a08-81eb-66ac57c806cd",
+    "name": "Test Crop for Fixes",
+    "variety": "Premium Quality",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 20,
+    "location": "Test Farm Location",
+    "createdAt": "2026-03-05T19:36:34.632Z",
+    "status": "planted"
+  },
+  {
+    "id": "7070ce0c-78df-4a81-b552-7e739c69435d",
+    "userId": "bb1c1266-3584-4a08-81eb-66ac57c806cd",
+    "name": "Test Crop for Fixes",
+    "variety": "Premium Quality",
+    "plantingDate": "2026-01-15",
+    "expectedHarvestDate": "2026-04-15",
+    "area": 20,
+    "location": "Test Farm Location",
+    "createdAt": "2026-03-05T19:37:53.385Z",
+    "status": "planted"
+  },
+  {
+    "id": "6ee8cb92-b249-44af-badd-86d88d17a94b",
+    "userId": "bb1c1266-3584-4a08-81eb-66ac57c806cd",
+    "name": "QA Test Crop",
+    "area": 5,
+    "plantingDate": "2026-03-06T00:55:41.385Z",
+    "expectedHarvestDate": "2026-06-04T00:55:41.385Z",
+    "variety": "Test Variety",
+    "expectedYield": 100,
+    "createdAt": "2026-03-06T00:55:41.386Z",
+    "status": "planted"
+  }
+]
