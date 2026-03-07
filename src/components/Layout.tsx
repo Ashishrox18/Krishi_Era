@@ -6,6 +6,7 @@ import {
 import { useState, useEffect, useRef } from 'react'
 import NotificationBell from './NotificationBell'
 import NotificationTester from './NotificationTester'
+import LanguageSwitcher from './LanguageSwitcher'
 
 const Layout = () => {
   const location = useLocation()
@@ -103,6 +104,7 @@ const Layout = () => {
             {/* Right side icons */}
             <div className="flex items-center space-x-4">
               <NotificationBell />
+              <LanguageSwitcher />
               
               {/* User Menu Dropdown */}
               <div className="relative hidden md:block" ref={userMenuRef}>

@@ -140,39 +140,91 @@ const CropPlanning = () => {
     }
 
     setFetchingLocation(true);
+    console.log('🔍 Requesting location permission...');
+    
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        console.log('✅ Location obtained:', latitude, longitude);
         
         try {
           // Use OpenStreetMap Nominatim API for reverse geocoding (free)
+          console.log('🌍 Fetching address from coordinates...');
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
             {
               headers: {
-                'User-Agent': 'KrishiEra/1.0'
+                'Accept-Language': 'en',
+                'User-Agent': 'KrishiConnect/1.0'
               }
             }
           );
-          const data = await response.json();
           
-          // Extract city and state
-          const city = data.address.city || data.address.town || data.address.village || data.address.county;
-          const state = data.address.state;
-          const locationString = state ? `${city}, ${state}` : city;
-          
-          setFormData(prev => ({ ...prev, location: locationString }));
+          if (response.ok) {
+            const data = await response.json();
+            console.log('📍 Geocoding response:', data);
+            const address = data.address;
+            
+            // Build a readable location string
+            const locationParts = [
+              address.village || address.town || address.city || address.suburb,
+              address.county || address.state_district,
+              address.state
+            ].filter(Boolean);
+            
+            const locationString = locationParts.join(', ');
+            
+            if (locationString) {
+              console.log('✅ Location set:', locationString);
+              setFormData(prev => ({ ...prev, location: locationString }));
+            } else {
+              const coords = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+              console.log('⚠️ Using coordinates:', coords);
+              setFormData(prev => ({ ...prev, location: coords }));
+            }
+          } else {
+            console.warn('⚠️ Geocoding API returned error:', response.status);
+            // Fallback to coordinates if geocoding fails
+            const coords = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            setFormData(prev => ({ ...prev, location: coords }));
+          }
         } catch (error) {
-          console.error('Error fetching location:', error);
-          alert('Failed to fetch location details. Please enter manually.');
+          console.error('❌ Error fetching location:', error);
+          // Fallback to coordinates
+          const coords = `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
+          setFormData(prev => ({ ...prev, location: coords }));
         } finally {
           setFetchingLocation(false);
         }
       },
       (error) => {
         setFetchingLocation(false);
-        console.error('Error getting location:', error);
-        alert('Unable to retrieve your location. Please enter manually.');
+        console.error('❌ Geolocation error:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
+        let errorMessage = 'Unable to detect location. ';
+        
+        switch (error.code) {
+          case 1: // PERMISSION_DENIED
+            errorMessage += 'Location permission was denied. Please check your browser settings and allow location access for this site.';
+            break;
+          case 2: // POSITION_UNAVAILABLE
+            errorMessage += 'Location information is unavailable. Please check your device settings.';
+            break;
+          case 3: // TIMEOUT
+            errorMessage += 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage += 'An unknown error occurred. Please enter your location manually.';
+        }
+        
+        alert(errorMessage);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
       }
     );
   };
@@ -326,11 +378,12 @@ const CropPlanning = () => {
               </div>
 
               <div>
-                <label className="label">Season (Optional)</label>
+                <label className="label">Season</label>
                 <select 
                   value={formData.season}
                   onChange={(e) => handleInputChange('season', e.target.value)}
                   className="input"
+                  required
                 >
                   <option value="">Select season</option>
                   <option value="kharif">Kharif (Monsoon)</option>
@@ -478,7 +531,7 @@ const CropPlanning = () => {
                     </div>
                   )}
 
-                  <div className="flex items-center">
+                  <div className="flex items-center justify-between">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       crop.riskLevel === 'Low' ? 'bg-green-100 text-green-800' :
                       crop.riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
@@ -486,6 +539,36 @@ const CropPlanning = () => {
                     }`}>
                       {crop.riskLevel} Risk
                     </span>
+                    
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          // Save the crop plan
+                          await apiService.createCrop({
+                            name: crop.name,
+                            area: parseFloat(formData.landSize),
+                            plantingDate: new Date().toISOString(),
+                            duration: parseInt(crop.duration) || 90,
+                            expectedYield: parseFloat(crop.expectedYield) || 0,
+                            expectedRevenue: parseFloat(crop.revenue.replace(/[₹,L]/g, '')) * 100000 || 0,
+                            status: 'planned',
+                            soilType: formData.soilType,
+                            waterNeed: crop.waterNeed,
+                            marketDemand: crop.marketDemand,
+                            riskLevel: crop.riskLevel
+                          });
+                          
+                          alert(`✅ ${crop.name} has been added to your crop plan! Check Harvest Management to see it.`);
+                        } catch (error) {
+                          console.error('Failed to save crop:', error);
+                          alert('Failed to save crop plan. Please try again.');
+                        }
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
+                    >
+                      Plant This Crop
+                    </button>
                   </div>
                 </div>
               ))}

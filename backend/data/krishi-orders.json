@@ -445,5 +445,27 @@
     "status": "pending",
     "createdAt": "2026-03-07T09:57:32.215Z",
     "updatedAt": "2026-03-07T09:57:32.215Z"
+  },
+  {
+    "id": "bba80cb7-b1af-4e64-a8c8-9e8bce908a16",
+    "farmerId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
+    "cropType": "Wheat",
+    "variety": "",
+    "quantity": 28.8,
+    "quantityUnit": "quintals",
+    "qualityGrade": "A",
+    "minimumPrice": 2288,
+    "expectedPrice": 2288,
+    "pickupLocation": "Bengaluru, Bangalore South, Karnataka",
+    "availableFrom": "2026-03-07",
+    "availableTill": "",
+    "description": "Wheat - Following AI selling strategy: Selling 30% now. Based on market trends for Wheat, sell 30% immediately to cover costs and store 70% for better prices. Expected price increase of 8% over next 2-3 months.",
+    "status": "released",
+    "currentBestOffer": 0,
+    "quotesCount": 0,
+    "type": "farmer_listing",
+    "createdAt": "2026-03-07T09:54:12.623Z",
+    "updatedAt": "2026-03-07T09:54:12.623Z",
+    "expiresAt": "2026-04-06T09:54:12.623Z"
   }
 ]

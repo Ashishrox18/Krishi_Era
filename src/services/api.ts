@@ -27,7 +27,19 @@ class ApiService {
 
     // Response interceptor for error handling
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Log all responses for debugging
+        if (response.config.url?.includes('market-prices')) {
+          console.log('🔍 Axios Response Interceptor:', {
+            url: response.config.url,
+            status: response.status,
+            statusText: response.statusText,
+            data: response.data,
+            headers: response.headers
+          });
+        }
+        return response;
+      },
       (error: AxiosError) => {
         if (error.response?.status === 401) {
           sessionStorage.removeItem('token');
@@ -180,10 +192,12 @@ class ApiService {
     return response.data;
   }
 
-  async getMarketPrices(product?: string) {
-    const response = await this.client.get('/farmer/market-prices', {
-      params: { product },
-    });
+  async getMarketPrices(product?: string, state?: string) {
+    const params: any = {};
+    if (product) params.product = product;
+    if (state) params.state = state;
+    
+    const response = await this.client.get('/farmer/market-prices', { params });
     return response.data;
   }
 
@@ -496,6 +510,8 @@ class ApiService {
     const response = await this.client.post('/ai/selling-strategy', data);
     return response.data;
   }
+
+
 
   async getAIHarvestTiming(data: any) {
     const response = await this.client.post('/ai/harvest-timing', data);

@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "jest",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "setup-dynamodb": "ts-node scripts/setup-dynamodb.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.515.0",

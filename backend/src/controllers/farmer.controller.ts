@@ -86,14 +86,22 @@ export class FarmerController {
   async getCrops(req: AuthRequest, res: Response) {
     try {
       const userId = req.user!.id;
-      const crops = await dynamoDBService.query(
+      console.log('📋 Getting crops for user:', userId);
+      
+      // Use scan with filter since userId is not the primary key
+      const allCrops = await dynamoDBService.scan(
         process.env.DYNAMODB_CROPS_TABLE!,
         'userId = :userId',
         { ':userId': userId }
       );
 
-      res.json({ crops });
+      console.log('✅ Found crops:', allCrops.length);
+      if (allCrops.length > 0) {
+        console.log('📦 Sample crop data:', JSON.stringify(allCrops[0], null, 2));
+      }
+      res.json({ crops: allCrops });
     } catch (error) {
+      console.error('❌ Get crops error:', error);
       res.status(500).json({ error: 'Failed to fetch crops' });
     }
   }
@@ -121,21 +129,75 @@ export class FarmerController {
     try {
       const { id } = req.params;
       const userId = req.user!.id;
+      const updateData = req.body;
+
+      // Build dynamic update expression
+      const updateExpressions: string[] = [];
+      const expressionAttributeValues: any = {
+        ':updatedAt': new Date().toISOString()
+      };
+      const expressionAttributeNames: any = {};
+
+      // Add fields to update if they exist in the request
+      if (updateData.name !== undefined) {
+        updateExpressions.push('#name = :name');
+        expressionAttributeValues[':name'] = updateData.name;
+        expressionAttributeNames['#name'] = 'name';
+      }
+      if (updateData.area !== undefined) {
+        updateExpressions.push('area = :area');
+        expressionAttributeValues[':area'] = updateData.area;
+      }
+      if (updateData.status !== undefined) {
+        updateExpressions.push('#status = :status');
+        expressionAttributeValues[':status'] = updateData.status;
+        expressionAttributeNames['#status'] = 'status';
+      }
+      if (updateData.actualYield !== undefined) {
+        updateExpressions.push('actualYield = :actualYield');
+        expressionAttributeValues[':actualYield'] = updateData.actualYield;
+      }
+      if (updateData.yieldUnit !== undefined) {
+        updateExpressions.push('yieldUnit = :yieldUnit');
+        expressionAttributeValues[':yieldUnit'] = updateData.yieldUnit;
+      }
+      if (updateData.variety !== undefined) {
+        updateExpressions.push('variety = :variety');
+        expressionAttributeValues[':variety'] = updateData.variety;
+      }
+      if (updateData.qualityGrade !== undefined) {
+        updateExpressions.push('qualityGrade = :qualityGrade');
+        expressionAttributeValues[':qualityGrade'] = updateData.qualityGrade;
+      }
+      if (updateData.harvestDate !== undefined) {
+        updateExpressions.push('harvestDate = :harvestDate');
+        expressionAttributeValues[':harvestDate'] = updateData.harvestDate;
+      }
+      if (updateData.storageLocation !== undefined) {
+        updateExpressions.push('storageLocation = :storageLocation');
+        expressionAttributeValues[':storageLocation'] = updateData.storageLocation;
+      }
+      if (updateData.notes !== undefined) {
+        updateExpressions.push('notes = :notes');
+        expressionAttributeValues[':notes'] = updateData.notes;
+      }
+
+      // Always update the updatedAt timestamp
+      updateExpressions.push('updatedAt = :updatedAt');
+
+      const updateExpression = 'SET ' + updateExpressions.join(', ');
 
       const updated = await dynamoDBService.update(
         process.env.DYNAMODB_CROPS_TABLE!,
         { id, userId },
-        'SET #name = :name, area = :area, #status = :status, updatedAt = :updatedAt',
-        {
-          ':name': req.body.name,
-          ':area': req.body.area,
-          ':status': req.body.status,
-          ':updatedAt': new Date().toISOString(),
-        }
+        updateExpression,
+        expressionAttributeValues,
+        Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined
       );
 
       res.json({ crop: updated });
     } catch (error) {
+      console.error('Update crop error:', error);
       res.status(500).json({ error: 'Failed to update crop' });
     }
   }
@@ -145,7 +207,11 @@ export class FarmerController {
       const { id } = req.params;
       const userId = req.user!.id;
 
-      await dynamoDBService.delete(process.env.DYNAMODB_CROPS_TABLE!, { id, userId });
+      console.log(`🗑️ Delete crop request - ID: ${id}, UserID: ${userId}`);
+
+      const result = await dynamoDBService.delete(process.env.DYNAMODB_CROPS_TABLE!, { id, userId });
+      
+      console.log(`✅ Crop deleted from database:`, result);
 
       res.json({ message: 'Crop deleted successfully' });
     } catch (error) {
@@ -342,18 +408,67 @@ export class FarmerController {
 
   async getMarketPrices(req: AuthRequest, res: Response) {
     try {
-      const { product } = req.query;
+      const { product, state } = req.query;
+      const { marketPriceService } = await import('../services/market-price.service');
 
-      // Mock market prices - integrate with actual market data
-      const prices = {
-        rice: { current: 22000, trend: 'rising', change: '+5%' },
-        wheat: { current: 25000, trend: 'stable', change: '+2%' },
-        cotton: { current: 75000, trend: 'rising', change: '+8%' },
-      };
+      console.log(`📊 Market price request - Product: ${product || 'all'}, State: ${state || 'all'}`);
+      console.log(`🔍 Request query params:`, req.query);
 
-      res.json({ prices: product ? { [product as string]: prices[product as keyof typeof prices] } : prices });
+      if (product) {
+        // Get specific crop price
+        console.log(`🌾 Fetching price for specific crop: ${product}`);
+        const priceData = await marketPriceService.getAveragePrice(product as string, state as string);
+        
+        console.log(`✅ Price data received:`, priceData);
+        
+        // Use lowercase key for consistency
+        const cropKey = (product as string).toLowerCase();
+        
+        const responseData = {
+          prices: {
+            [cropKey]: {
+              current: priceData.average,
+              min: priceData.min,
+              max: priceData.max,
+              trend: priceData.trend,
+              change: `${priceData.change > 0 ? '+' : ''}${priceData.change}%`,
+              unit: priceData.unit
+            }
+          }
+        };
+        
+        console.log(`📤 Sending response with key "${cropKey}":`, JSON.stringify(responseData, null, 2));
+        return res.status(200).json(responseData);
+      } else {
+        // Get prices for common crops
+        console.log(`🌾 Fetching prices for multiple crops`);
+        const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Potato', 'Onion'];
+        const pricesPromises = crops.map(crop => 
+          marketPriceService.getAveragePrice(crop, state as string)
+        );
+        
+        const pricesData = await Promise.all(pricesPromises);
+        
+        const prices: any = {};
+        crops.forEach((crop, index) => {
+          const data = pricesData[index];
+          prices[crop.toLowerCase()] = {
+            current: data.average,
+            min: data.min,
+            max: data.max,
+            trend: data.trend,
+            change: `${data.change > 0 ? '+' : ''}${data.change}%`,
+            unit: data.unit
+          };
+        });
+
+        const responseData = { prices };
+        console.log(`📤 Sending response for ${crops.length} crops:`, JSON.stringify(responseData, null, 2));
+        return res.status(200).json(responseData);
+      }
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch market prices' });
+      console.error('❌ Market prices error:', error);
+      return res.status(500).json({ error: 'Failed to fetch market prices' });
     }
   }
 

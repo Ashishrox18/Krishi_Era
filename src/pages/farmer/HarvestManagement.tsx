@@ -1,14 +1,35 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Calendar, TrendingUp, AlertCircle, CheckCircle, Package, MapPin, DollarSign } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar, TrendingUp, AlertCircle, CheckCircle, Package, MapPin, DollarSign, Sparkles, Lightbulb, Sprout, Trash2 } from 'lucide-react';
 import { apiService } from '../../services/api';
 
 const HarvestManagement = () => {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'list-produce'>('overview');
+  const [activeTab, setActiveTab] = useState<'planted-crops' | 'harvest-ready' | 'listed-produce' | 'list-produce' | 'ai-strategy' | 'harvest-ready-form'>('planted-crops');
   const [loading, setLoading] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [selectedHarvest, setSelectedHarvest] = useState<any>(null);
+  const [harvestReadyForm, setHarvestReadyForm] = useState<any>(null);
+  
+  // Debug: Log when harvestReadyForm changes
+  useEffect(() => {
+    if (harvestReadyForm) {
+      console.log('🔄 harvestReadyForm updated:', harvestReadyForm);
+    }
+  }, [harvestReadyForm]);
+  
+  // AI Strategy state
+  const [strategyLoading, setStrategyLoading] = useState(false);
+  const [strategy, setStrategy] = useState<any>(null);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [strategyForm, setStrategyForm] = useState({
+    cropType: '',
+    expectedYield: '',
+    yieldUnit: 'quintals',
+    harvestMonth: '',
+    currentMarketPrice: '',
+    storageAvailable: 'yes',
+    location: ''
+  });
+  
   const [formData, setFormData] = useState({
     cropType: '',
     variety: '',
@@ -21,38 +42,163 @@ const HarvestManagement = () => {
     description: '',
     images: [] as string[]
   });
-  const harvests = [
-    {
-      crop: 'Wheat',
-      area: '3 acres',
-      status: 'ready',
-      daysRemaining: 0,
-      expectedYield: '9.6 tons',
-      marketPrice: '₹25,000/ton',
-      optimalWindow: '5 days',
-      recommendation: 'Harvest immediately. Market prices are favorable.',
-    },
-    {
-      crop: 'Rice',
-      area: '5 acres',
-      status: 'upcoming',
-      daysRemaining: 45,
-      expectedYield: '22.5 tons',
-      marketPrice: '₹22,000/ton',
-      optimalWindow: '7 days',
-      recommendation: 'Monitor weather. Plan harvest for early morning.',
-    },
-    {
-      crop: 'Cotton',
-      area: '4 acres',
-      status: 'growing',
-      daysRemaining: 120,
-      expectedYield: '11.2 tons',
-      marketPrice: '₹75,000/ton',
-      optimalWindow: '10 days',
-      recommendation: 'Continue regular monitoring and pest control.',
-    },
-  ];
+  
+  const [harvests, setHarvests] = useState<any[]>([]);
+  const [loadingHarvests, setLoadingHarvests] = useState(false);
+  const [deletingCropIds, setDeletingCropIds] = useState<Set<string>>(new Set());
+  
+  // Fetch crops/harvests on component mount
+  useEffect(() => {
+    fetchHarvests();
+  }, []);
+  
+  const fetchHarvests = async () => {
+    setLoadingHarvests(true);
+    try {
+      const response = await apiService.getCrops();
+      const crops = response.crops || [];
+      
+      // Get user location for market prices
+      const userData = localStorage.getItem('user');
+      let userLocation = '';
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          userLocation = user.location || user.address || '';
+        } catch (e) {
+          console.error('Failed to parse user data:', e);
+        }
+      }
+      
+      // Transform crops into harvest format with market prices
+      const transformedHarvests = await Promise.all(crops.map(async (crop: any) => {
+        const plantingDate = new Date(crop.plantingDate);
+        const harvestDate = new Date(plantingDate);
+        harvestDate.setDate(harvestDate.getDate() + (crop.duration || 90));
+        
+        const daysRemaining = Math.ceil(
+          (harvestDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        
+        // Use the status from database if it exists, otherwise calculate it
+        let status = crop.status || 'growing';
+        if (!crop.status) {
+          // Only calculate status if not explicitly set
+          if (daysRemaining <= 0) status = 'ready';
+          else if (daysRemaining <= 30) status = 'upcoming';
+        }
+        
+        // Use actualYield if available (from harvest ready form), otherwise use expectedYield
+        const yieldValue = crop.actualYield || crop.expectedYield;
+        const yieldUnit = crop.yieldUnit || 'tons';
+        const displayYield = yieldValue ? `${yieldValue} ${yieldUnit}` : 'N/A';
+        
+        // Fetch market price for this crop
+        let marketPrice = '₹2,500/quintal'; // Default fallback
+        try {
+          const priceResponse = await apiService.getMarketPrices(
+            crop.name,
+            crop.storageLocation || userLocation || undefined
+          );
+          
+          if (priceResponse && priceResponse.prices) {
+            const cropKey = crop.name.toLowerCase();
+            if (priceResponse.prices[cropKey]) {
+              const priceData = priceResponse.prices[cropKey];
+              
+              // Convert price to quintals
+              let pricePerQuintal = priceData.current;
+              const unit = priceData.unit.toLowerCase();
+              
+              if (unit === 'ton' || unit === 'tons') {
+                // 1 ton = 10 quintals, so divide by 10
+                pricePerQuintal = priceData.current / 10;
+              } else if (unit === 'kg' || unit === 'kilogram') {
+                // 1 quintal = 100 kg, so multiply by 100
+                pricePerQuintal = priceData.current * 100;
+              }
+              // If already in quintals, use as is
+              
+              marketPrice = `₹${Math.round(pricePerQuintal).toLocaleString('en-IN')}/quintal`;
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to fetch price for ${crop.name}:`, error);
+          // Keep default fallback price
+        }
+        
+        return {
+          id: crop.id,
+          crop: crop.name,
+          area: `${crop.area} acres`,
+          status,
+          daysRemaining: Math.max(0, daysRemaining),
+          expectedYield: displayYield,
+          marketPrice,
+          recommendation: status === 'ready' 
+            ? 'Harvest immediately. Market prices are favorable.' 
+            : status === 'upcoming'
+            ? 'Monitor weather. Plan harvest for early morning.'
+            : 'Continue regular monitoring and pest control.',
+          // Store original crop data for prefilling forms
+          originalCrop: crop
+        };
+      }));
+      
+      setHarvests(transformedHarvests);
+    } catch (error) {
+      console.error('Failed to fetch crops:', error);
+      // Keep empty array on error
+    } finally {
+      setLoadingHarvests(false);
+    }
+  };
+  
+  const handleDeleteCrop = async (cropId: string, cropName: string) => {
+    if (!cropId) {
+      alert('Cannot delete crop: Invalid crop ID');
+      return;
+    }
+    
+    // Prevent duplicate deletes
+    if (deletingCropIds.has(cropId)) {
+      console.log(`⚠️ Already deleting ${cropName}, skipping duplicate request`);
+      return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${cropName}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    // Mark as deleting
+    setDeletingCropIds(prev => new Set(prev).add(cropId));
+    
+    try {
+      console.log(`Deleting crop: ${cropName} (ID: ${cropId})`);
+      
+      // Immediately remove from UI for better UX
+      setHarvests(prev => prev.filter(h => h.id !== cropId));
+      
+      // Delete from backend
+      await apiService.deleteCrop(cropId);
+      console.log(`✅ Crop deleted successfully`);
+      
+    } catch (error: any) {
+      console.error('Failed to delete crop:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert(`Failed to delete crop: ${errorMsg}`);
+      
+      // Refresh to restore the crop if delete failed
+      fetchHarvests();
+    } finally {
+      // Remove from deleting set
+      setDeletingCropIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cropId);
+        return newSet;
+      });
+    }
+  };
 
   const cropTypes = [
     'Wheat', 'Rice', 'Maize', 'Bajra', 'Jowar',
@@ -61,8 +207,146 @@ const HarvestManagement = () => {
     'Lentils', 'Green Gram', 'Black Gram', 'Barley', 'Millet'
   ];
 
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateStrategyField = (field: string, value: string) => {
+    setStrategyForm(prev => ({ ...prev, [field]: value }));
+    
+    // Auto-fetch price when crop type changes (if price is empty)
+    if (field === 'cropType' && value && !strategyForm.currentMarketPrice) {
+      setTimeout(() => {
+        fetchCurrentPriceForCrop(value);
+      }, 500);
+    }
+  };
+
+  const fetchCurrentPriceForCrop = async (cropType: string) => {
+    if (!cropType) return;
+
+    try {
+      console.log(`🔍 Auto-fetching price for ${cropType}...`);
+      const response = await apiService.getMarketPrices(cropType, strategyForm.location || undefined);
+      
+      console.log('📦 API Response:', response);
+      
+      if (response.prices && response.prices[cropType.toLowerCase()]) {
+        const priceData = response.prices[cropType.toLowerCase()];
+        setStrategyForm(prev => ({
+          ...prev,
+          currentMarketPrice: priceData.current.toString()
+        }));
+        console.log(`✅ Auto-fetched price for ${cropType}: ₹${priceData.current}/${priceData.unit}`);
+      } else {
+        console.log(`⚠️ No price data found for ${cropType}`);
+      }
+    } catch (error) {
+      console.error('❌ Auto-fetch price failed:', error);
+      // Silently fail - user can manually fetch or enter
+    }
+  };
+
+  const fetchCurrentPrice = async () => {
+    if (!strategyForm.cropType) {
+      console.log('⚠️ No crop type selected');
+      return;
+    }
+
+    setFetchingPrice(true);
+    try {
+      console.log(`🔍 Fetching price for ${strategyForm.cropType}...`);
+      console.log(`📍 Location: ${strategyForm.location || 'Not specified'}`);
+      
+      // Ensure crop type is properly capitalized (first letter uppercase)
+      const cropType = strategyForm.cropType.charAt(0).toUpperCase() + strategyForm.cropType.slice(1).toLowerCase();
+      console.log(`📝 Normalized crop type: ${cropType}`);
+      
+      const response = await apiService.getMarketPrices(cropType, strategyForm.location || undefined);
+      
+      console.log('📦 Full API Response:', response);
+      console.log('📦 Response type:', typeof response);
+      console.log('📦 Response status:', response?.status);
+      
+      if (!response) {
+        console.log('⚠️ Response is null or undefined');
+        return;
+      }
+      
+      if (response && response.prices) {
+        const cropKey = cropType.toLowerCase();
+        console.log(`🔑 Looking for crop key: "${cropKey}"`);
+        console.log(`📋 Available keys:`, Object.keys(response.prices));
+        
+        if (response.prices[cropKey]) {
+          const priceData = response.prices[cropKey];
+          console.log(`✅ Found price data:`, priceData);
+          console.log(`💰 Price: ₹${priceData.current}/${priceData.unit}, Trend: ${priceData.trend} (${priceData.change})`);
+          
+          updateStrategyField('currentMarketPrice', priceData.current.toString());
+        } else {
+          console.log(`⚠️ No price data found for "${cropKey}"`);
+          console.log(`Available crops:`, Object.keys(response.prices).join(', '));
+        }
+      } else {
+        console.log('⚠️ Invalid response format - no prices object:', response);
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to fetch market price:', error);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
+      console.error('Error data:', error.response?.data);
+      console.error('Error message:', error.message);
+    } finally {
+      setFetchingPrice(false);
+    }
+  };
+
+  const getSellingStrategy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!strategyForm.cropType || !strategyForm.expectedYield || !strategyForm.harvestMonth) {
+      alert('Please fill all required fields');
+      return;
+    }
+
+    setStrategyLoading(true);
+    try {
+      const response = await apiService.getAISellingStrategy({
+        cropType: strategyForm.cropType,
+        expectedYield: parseFloat(strategyForm.expectedYield),
+        yieldUnit: strategyForm.yieldUnit,
+        harvestMonth: strategyForm.harvestMonth,
+        currentMarketPrice: strategyForm.currentMarketPrice ? parseFloat(strategyForm.currentMarketPrice) : null,
+        storageAvailable: strategyForm.storageAvailable === 'yes',
+        location: strategyForm.location
+      });
+
+      setStrategy(response);
+    } catch (error: any) {
+      console.error('AI Strategy error:', error);
+      alert(error.response?.data?.error || 'Failed to get AI recommendations. Please try again.');
+    } finally {
+      setStrategyLoading(false);
+    }
+  };
+
+  const resetStrategy = () => {
+    setStrategy(null);
+    setStrategyForm({
+      cropType: '',
+      expectedYield: '',
+      yieldUnit: 'quintals',
+      harvestMonth: '',
+      currentMarketPrice: '',
+      storageAvailable: 'yes',
+      location: ''
+    });
   };
 
   const detectLocation = async () => {
@@ -84,7 +368,8 @@ const HarvestManagement = () => {
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
             {
               headers: {
-                'Accept-Language': 'en'
+                'Accept-Language': 'en',
+                'User-Agent': 'KrishiConnect/1.0'
               }
             }
           );
@@ -108,6 +393,7 @@ const HarvestManagement = () => {
               updateField('location', `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
             }
           } else {
+            console.warn('Geocoding API returned error:', response.status);
             // Fallback to coordinates if geocoding fails
             updateField('location', `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
           }
@@ -125,16 +411,16 @@ const HarvestManagement = () => {
         
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage += 'Please allow location access in your browser settings.';
+            errorMessage += 'Please allow location access in your browser settings. Click the location icon in your browser\'s address bar to enable.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage += 'Location information is unavailable.';
+            errorMessage += 'Location information is unavailable. Please check your device settings.';
             break;
           case error.TIMEOUT:
-            errorMessage += 'Location request timed out.';
+            errorMessage += 'Location request timed out. Please try again.';
             break;
           default:
-            errorMessage += 'An unknown error occurred.';
+            errorMessage += 'An unknown error occurred. Please enter your location manually.';
         }
         
         alert(errorMessage);
@@ -151,43 +437,28 @@ const HarvestManagement = () => {
   const handleListForSale = (harvest: any) => {
     setSelectedHarvest(harvest);
     
-    // Extract quantity from expectedYield (e.g., "9.6 tons" -> 96 quintals)
+    const crop = harvest.originalCrop || {};
+    
+    // Use actualYield if available (from harvest ready form), otherwise default
+    const yieldValue = crop.actualYield || 10;
+    const yieldUnit = crop.yieldUnit || 'quintals';
+    
+    // Convert to quintals for the form
     let quantity = '';
     let unit = 'quintals';
-    if (harvest.expectedYield) {
-      const yieldMatch = harvest.expectedYield.match(/([\d.]+)\s*(tons?|quintals?|kg)/i);
-      if (yieldMatch) {
-        const value = parseFloat(yieldMatch[1]);
-        const yieldUnit = yieldMatch[2].toLowerCase();
-        
-        // Convert to quintals
-        if (yieldUnit.startsWith('ton')) {
-          quantity = (value * 10).toString(); // 1 ton = 10 quintals
-        } else if (yieldUnit.startsWith('quintal')) {
-          quantity = value.toString();
-        } else if (yieldUnit.startsWith('kg')) {
-          quantity = (value / 100).toString(); // 100 kg = 1 quintal
-        }
-      }
-    }
-
-    // Extract price from marketPrice (e.g., "₹25,000/ton" -> 2500 per quintal)
-    let pricePerUnit = '';
-    if (harvest.marketPrice) {
-      const priceMatch = harvest.marketPrice.match(/₹?([\d,]+)\/?(ton|quintal|kg)?/i);
-      if (priceMatch) {
-        const price = parseFloat(priceMatch[1].replace(/,/g, ''));
-        const priceUnit = priceMatch[2]?.toLowerCase();
-        
-        // Convert to price per quintal
-        if (priceUnit === 'ton') {
-          pricePerUnit = (price / 10).toString(); // Price per ton to price per quintal
-        } else if (priceUnit === 'kg') {
-          pricePerUnit = (price * 100).toString(); // Price per kg to price per quintal
-        } else {
-          pricePerUnit = price.toString();
-        }
-      }
+    
+    if (yieldUnit.toLowerCase().includes('ton')) {
+      quantity = (parseFloat(yieldValue) * 10).toString(); // 1 ton = 10 quintals
+      unit = 'quintals';
+    } else if (yieldUnit.toLowerCase().includes('quintal')) {
+      quantity = yieldValue.toString();
+      unit = 'quintals';
+    } else if (yieldUnit.toLowerCase().includes('kg')) {
+      quantity = (parseFloat(yieldValue) / 100).toString(); // 100 kg = 1 quintal
+      unit = 'quintals';
+    } else {
+      quantity = yieldValue.toString();
+      unit = yieldUnit;
     }
 
     // Get user location from localStorage
@@ -202,21 +473,127 @@ const HarvestManagement = () => {
       }
     }
 
-    // Prefill form with harvest data
+    // Use storage location from harvest ready form if available
+    const storageLocation = crop.storageLocation || location;
+
+    // Prefill form with actual harvest data
     setFormData({
       cropType: harvest.crop || '',
-      variety: '',
+      variety: crop.variety || '',
       quantity: quantity,
       quantityUnit: unit,
-      qualityGrade: 'A',
-      pricePerUnit: pricePerUnit,
-      location: location,
-      availableFrom: new Date().toISOString().split('T')[0],
-      description: `${harvest.crop} from ${harvest.area} farm. ${harvest.recommendation || ''}`,
+      qualityGrade: crop.qualityGrade || 'A',
+      pricePerUnit: '', // Leave empty for user to fetch or enter
+      location: storageLocation,
+      availableFrom: crop.harvestDate || new Date().toISOString().split('T')[0],
+      description: crop.notes || `${harvest.crop} from ${harvest.area} farm. ${harvest.recommendation || ''}`,
       images: []
     });
 
     setActiveTab('list-produce');
+  };
+
+  const handleAIStrategy = (harvest: any) => {
+    setSelectedHarvest(harvest);
+    
+    const crop = harvest.originalCrop || {};
+    
+    // Use actualYield if available (from harvest ready form), otherwise use expectedYield
+    const yieldValue = crop.actualYield || crop.expectedYield || 0;
+    const yieldUnit = crop.yieldUnit || 'tons';
+    
+    // Keep the original unit for AI strategy
+    let quantity = yieldValue.toString();
+    let unit = yieldUnit;
+
+    // Extract price from marketPrice
+    let currentPrice = '';
+    if (harvest.marketPrice) {
+      const priceMatch = harvest.marketPrice.match(/₹?([\d,]+)/);
+      if (priceMatch) {
+        currentPrice = priceMatch[1].replace(/,/g, '');
+      }
+    }
+
+    // Get user location
+    const userData = localStorage.getItem('user');
+    let location = '';
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        location = user.location || user.address || '';
+      } catch (e) {
+        console.error('Failed to parse user data:', e);
+      }
+    }
+
+    // Use storage location from harvest ready form if available
+    const storageLocation = crop.storageLocation || location;
+
+    // Get harvest month from harvestDate if available, otherwise calculate
+    let harvestMonth = '';
+    if (crop.harvestDate) {
+      const harvestDate = new Date(crop.harvestDate);
+      harvestMonth = months[harvestDate.getMonth()];
+    } else {
+      const currentMonth = new Date().getMonth();
+      const harvestMonthIndex = harvest.daysRemaining <= 30 ? currentMonth : (currentMonth + 1) % 12;
+      harvestMonth = months[harvestMonthIndex];
+    }
+
+    // Prefill AI strategy form with actual crop data
+    setStrategyForm({
+      cropType: harvest.crop || '',
+      expectedYield: quantity,
+      yieldUnit: unit,
+      harvestMonth: harvestMonth,
+      currentMarketPrice: currentPrice,
+      storageAvailable: crop.storageLocation ? 'yes' : 'yes', // Default to yes
+      location: storageLocation
+    });
+
+    setActiveTab('ai-strategy');
+  };
+
+  const handleMarkHarvestReady = (harvest: any) => {
+    const crop = harvest.originalCrop || {};
+    
+    console.log('🔍 Harvest object:', harvest);
+    console.log('🔍 Original crop data:', crop);
+    
+    // Get user location for storage location default
+    const userData = localStorage.getItem('user');
+    let defaultLocation = '';
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        defaultLocation = user.location || user.address || '';
+      } catch (e) {
+        console.error('Failed to parse user data:', e);
+      }
+    }
+    
+    // Use crop name from database (crop.name is the actual field name in DB)
+    const cropName = crop.name || harvest.crop || '';
+    console.log('🌾 Crop name:', cropName);
+    
+    // Prefill the harvest ready form with crop data
+    const formData = {
+      id: harvest.id,
+      cropType: cropName,
+      variety: crop.variety || '',
+      actualYield: crop.expectedYield ? crop.expectedYield.toString() : '10',
+      yieldUnit: crop.yieldUnit || 'quintals',
+      qualityGrade: crop.qualityGrade || 'A',
+      harvestDate: new Date().toISOString().split('T')[0],
+      storageLocation: crop.storageLocation || defaultLocation,
+      notes: crop.notes || ''
+    };
+    
+    console.log('📝 Form data to prefill:', formData);
+    
+    setHarvestReadyForm(formData);
+    setActiveTab('harvest-ready-form');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -242,9 +619,23 @@ const HarvestManagement = () => {
         description: formData.description
       });
 
+      // Update crop status to 'listed' if we have the crop ID
+      if (selectedHarvest && selectedHarvest.id) {
+        try {
+          await apiService.updateCrop(selectedHarvest.id, {
+            status: 'listed',
+            listedDate: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('Failed to update crop status:', error);
+        }
+      }
+
       alert('Your produce has been listed successfully! Buyers can now see and quote on it.');
-      setActiveTab('overview');
+      setActiveTab('listed-produce');
       setSelectedHarvest(null);
+      fetchHarvests(); // Refresh to update the lists
+      
       // Reset form
       setFormData({
         cropType: '',
@@ -277,14 +668,24 @@ const HarvestManagement = () => {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
-            onClick={() => setActiveTab('overview')}
+            onClick={() => setActiveTab('planted-crops')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'overview'
+              activeTab === 'planted-crops'
                 ? 'border-green-500 text-green-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Harvest Overview
+            Planted Crops
+          </button>
+          <button
+            onClick={() => setActiveTab('harvest-ready')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'harvest-ready'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Harvest Ready
           </button>
           <button
             onClick={() => setActiveTab('list-produce')}
@@ -296,90 +697,425 @@ const HarvestManagement = () => {
           >
             List Produce
           </button>
+          <button
+            onClick={() => setActiveTab('ai-strategy')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'ai-strategy'
+                ? 'border-orange-500 text-orange-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            AI Selling Strategy
+          </button>
+          <button
+            onClick={() => setActiveTab('listed-produce')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'listed-produce'
+                ? 'border-purple-500 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Listed Produce
+          </button>
         </nav>
       </div>
 
-      {/* Harvest Overview Tab */}
-      {activeTab === 'overview' && (
+      {/* Planted Crops Tab */}
+      {activeTab === 'planted-crops' && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="card">
-              <p className="text-sm text-gray-600">Ready to Harvest</p>
-              <p className="text-3xl font-bold text-green-600">1</p>
+              <p className="text-sm text-gray-600">Growing</p>
+              <p className="text-3xl font-bold text-gray-600">
+                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length}
+              </p>
             </div>
             <div className="card">
-              <p className="text-sm text-gray-600">Upcoming (30 days)</p>
-              <p className="text-3xl font-bold text-blue-600">1</p>
-            </div>
-            <div className="card">
-              <p className="text-sm text-gray-600">Total Expected Yield</p>
-              <p className="text-3xl font-bold text-gray-900">43.3 tons</p>
+              <p className="text-sm text-gray-600">Total Planted</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length}
+              </p>
             </div>
           </div>
 
-          <div className="space-y-4">
-            {harvests.map((harvest) => (
-              <div key={harvest.crop} className="card">
-                <div className="flex items-start justify-between mb-4">
+          {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length > 0 && (
+            <>
+              {/* Helper Info Card */}
+              <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <Lightbulb className="h-6 w-6 text-blue-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <div className="flex items-center space-x-3">
-                      <h3 className="text-xl font-semibold text-gray-900">{harvest.crop}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        harvest.status === 'ready' ? 'bg-green-100 text-green-800' :
-                        harvest.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {harvest.status === 'ready' ? 'Ready to Harvest' :
-                         harvest.status === 'upcoming' ? 'Upcoming' : 'Growing'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1">{harvest.area}</p>
-                  </div>
-                  {harvest.status === 'ready' && (
-                    <button 
-                      onClick={() => handleListForSale(harvest)}
-                      className="btn-primary"
-                    >
-                      List for Sale
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <p className="text-xs text-gray-600">Days Remaining</p>
-                    <p className="text-lg font-semibold text-gray-900">{harvest.daysRemaining}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Expected Yield</p>
-                    <p className="text-lg font-semibold text-gray-900">{harvest.expectedYield}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Market Price</p>
-                    <p className="text-lg font-semibold text-gray-900">{harvest.marketPrice}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Optimal Window</p>
-                    <p className="text-lg font-semibold text-gray-900">{harvest.optimalWindow}</p>
-                  </div>
-                </div>
-
-                <div className={`p-3 rounded-lg flex items-start space-x-2 ${
-                  harvest.status === 'ready' ? 'bg-green-50' : 'bg-blue-50'
-                }`}>
-                  {harvest.status === 'ready' ? (
-                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">AI Recommendation</p>
-                    <p className="text-sm text-gray-700">{harvest.recommendation}</p>
+                    <h4 className="font-semibold text-gray-900 mb-1">Crop Management Tip</h4>
+                    <p className="text-sm text-gray-700">
+                      When your crop is ready to harvest, click <span className="font-semibold text-blue-600">Mark Harvest Ready</span> to update harvest details and move it to the Harvest Ready tab.
+                    </p>
                   </div>
                 </div>
               </div>
-            ))}
+
+              <div className="space-y-4">
+                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').map((harvest) => (
+                  <div key={harvest.id || harvest.crop} className="card">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="text-xl font-semibold text-gray-900">{harvest.crop}</h3>
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            harvest.status === 'ready' ? 'bg-green-100 text-green-800' :
+                            harvest.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {harvest.status === 'ready' ? 'Ready to Harvest' :
+                             harvest.status === 'upcoming' ? 'Upcoming' : 'Growing'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{harvest.area}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleMarkHarvestReady(harvest)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center text-sm font-medium shadow-sm hover:shadow-md"
+                          title="Mark this crop as harvest ready"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1.5" />
+                          <span className="hidden sm:inline">Mark Harvest Ready</span>
+                          <span className="sm:hidden">Ready</span>
+                        </button>
+                        {harvest.id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCrop(harvest.id, harvest.crop);
+                            }}
+                            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center text-sm font-medium shadow-sm hover:shadow-md"
+                            title="Delete this crop"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <p className="text-xs text-gray-600">Expected Yield</p>
+                        <p className="text-lg font-semibold text-gray-900">{harvest.expectedYield}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Market Price</p>
+                        <p className="text-lg font-semibold text-gray-900">{harvest.marketPrice}</p>
+                      </div>
+                    </div>
+
+                    <div className={`p-3 rounded-lg flex items-start space-x-2 ${
+                      harvest.status === 'ready' ? 'bg-green-50' : 'bg-blue-50'
+                    }`}>
+                      {harvest.status === 'ready' ? (
+                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">AI Recommendation</p>
+                        <p className="text-sm text-gray-700">{harvest.recommendation}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Empty State */}
+          {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length === 0 && !loadingHarvests && (
+            <div className="card text-center py-12">
+              <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Planted Crops</h3>
+              <p className="text-gray-600 mb-4">
+                Start by planning your crops to see them here
+              </p>
+              <button
+                onClick={() => window.location.href = '/farmer/crop-planning'}
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+              >
+                <Sprout className="h-5 w-5 mr-2" />
+                Plan a Crop
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Harvest Ready Tab */}
+      {activeTab === 'harvest-ready' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="card">
+              <p className="text-sm text-gray-600">Ready to Sell</p>
+              <p className="text-3xl font-bold text-green-600">
+                {harvests.filter(h => h.status === 'ready').length}
+              </p>
+            </div>
+            <div className="card">
+              <p className="text-sm text-gray-600">Total Yield</p>
+              <p className="text-3xl font-bold text-blue-600">
+                {harvests.filter(h => h.status === 'ready').reduce((sum, h) => {
+                  const match = h.expectedYield?.match(/([\d.]+)/);
+                  return sum + (match ? parseFloat(match[1]) : 0);
+                }, 0).toFixed(1)} quintals
+              </p>
+            </div>
+            <div className="card">
+              <p className="text-sm text-gray-600">Estimated Value</p>
+              <p className="text-3xl font-bold text-gray-900">
+                ₹{harvests.filter(h => h.status === 'ready').reduce((sum, h) => {
+                  const yieldMatch = h.expectedYield?.match(/([\d.]+)/);
+                  const priceMatch = h.marketPrice?.match(/₹?([\d,]+)/);
+                  const yield_ = yieldMatch ? parseFloat(yieldMatch[1]) : 0;
+                  const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
+                  return sum + (yield_ * price);
+                }, 0).toLocaleString('en-IN')}
+              </p>
+            </div>
           </div>
+
+          {harvests.filter(h => h.status === 'ready').length > 0 && (
+            <>
+              {/* Helper Info Card */}
+              <div className="bg-gradient-to-r from-orange-50 to-green-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <Lightbulb className="h-6 w-6 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Smart Selling Tip</h4>
+                    <p className="text-sm text-gray-700">
+                      Click <span className="font-semibold text-orange-600">AI Strategy</span> to get pricing recommendations before listing, 
+                      or click <span className="font-semibold text-green-600">List for Sale</span> to list immediately.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {harvests.filter(h => h.status === 'ready').map((harvest) => (
+                  <div key={harvest.id || harvest.crop} className="card">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="text-xl font-semibold text-gray-900">{harvest.crop}</h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                            Ready to Harvest
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{harvest.area}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleAIStrategy(harvest)}
+                          className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center text-sm font-medium shadow-sm hover:shadow-md"
+                          title="Get AI pricing strategy before listing"
+                        >
+                          <Sparkles className="h-4 w-4 mr-1.5" />
+                          <span className="hidden sm:inline">AI Strategy</span>
+                          <span className="sm:hidden">AI</span>
+                        </button>
+                        <button 
+                          onClick={() => handleListForSale(harvest)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center text-sm font-medium shadow-sm hover:shadow-md"
+                          title="List this harvest for sale"
+                        >
+                          <Package className="h-4 w-4 mr-1.5" />
+                          <span className="hidden sm:inline">List for Sale</span>
+                          <span className="sm:hidden">List</span>
+                        </button>
+                        {harvest.id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCrop(harvest.id, harvest.crop);
+                            }}
+                            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center text-sm font-medium shadow-sm hover:shadow-md"
+                            title="Delete this crop"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <p className="text-xs text-gray-600">Expected Yield</p>
+                        <p className="text-lg font-semibold text-gray-900">{harvest.expectedYield}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Market Price</p>
+                        <p className="text-lg font-semibold text-gray-900">{harvest.marketPrice}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg flex items-start space-x-2 bg-green-50">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">AI Recommendation</p>
+                        <p className="text-sm text-gray-700">{harvest.recommendation}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Empty State */}
+          {harvests.filter(h => h.status === 'ready').length === 0 && !loadingHarvests && (
+            <div className="card text-center py-12">
+              <CheckCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Harvest Ready Crops</h3>
+              <p className="text-gray-600 mb-4">
+                Mark your planted crops as harvest ready when they're ready to sell
+              </p>
+              <button
+                onClick={() => setActiveTab('planted-crops')}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                <Sprout className="h-5 w-5 mr-2" />
+                View Planted Crops
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Listed Produce Tab */}
+      {activeTab === 'listed-produce' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="card">
+              <p className="text-sm text-gray-600">Listed Items</p>
+              <p className="text-3xl font-bold text-purple-600">
+                {harvests.filter(h => h.status === 'listed').length}
+              </p>
+            </div>
+            <div className="card">
+              <p className="text-sm text-gray-600">Total Listed Quantity</p>
+              <p className="text-3xl font-bold text-blue-600">
+                {harvests.filter(h => h.status === 'listed').reduce((sum, h) => {
+                  const match = h.expectedYield?.match(/([\d.]+)/);
+                  return sum + (match ? parseFloat(match[1]) : 0);
+                }, 0).toFixed(1)} quintals
+              </p>
+            </div>
+            <div className="card">
+              <p className="text-sm text-gray-600">Potential Revenue</p>
+              <p className="text-3xl font-bold text-gray-900">
+                ₹{harvests.filter(h => h.status === 'listed').reduce((sum, h) => {
+                  const yieldMatch = h.expectedYield?.match(/([\d.]+)/);
+                  const priceMatch = h.marketPrice?.match(/₹?([\d,]+)/);
+                  const yield_ = yieldMatch ? parseFloat(yieldMatch[1]) : 0;
+                  const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
+                  return sum + (yield_ * price);
+                }, 0).toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+
+          {harvests.filter(h => h.status === 'listed').length > 0 && (
+            <>
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <Package className="h-6 w-6 text-purple-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">Listed Produce</h4>
+                    <p className="text-sm text-gray-700">
+                      Your produce is now visible to buyers. You'll receive notifications when buyers send quotes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {harvests.filter(h => h.status === 'listed').map((harvest) => (
+                  <div key={harvest.id || harvest.crop} className="card">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="text-xl font-semibold text-gray-900">{harvest.crop}</h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                            Listed for Sale
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{harvest.area}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        {harvest.id && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Remove ${harvest.crop} from listings?`)) {
+                                try {
+                                  await apiService.updateCrop(harvest.id, { status: 'ready' });
+                                  fetchHarvests();
+                                } catch (error) {
+                                  console.error('Failed to unlist:', error);
+                                  alert('Failed to remove listing');
+                                }
+                              }
+                            }}
+                            className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center text-sm font-medium shadow-sm hover:shadow-md"
+                            title="Remove from listings"
+                          >
+                            Unlist
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <p className="text-xs text-gray-600">Quantity</p>
+                        <p className="text-lg font-semibold text-gray-900">{harvest.expectedYield}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Listed Price</p>
+                        <p className="text-lg font-semibold text-gray-900">{harvest.marketPrice}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Quality</p>
+                        <p className="text-lg font-semibold text-gray-900">Grade {harvest.originalCrop?.qualityGrade || 'A'}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg flex items-start space-x-2 bg-purple-50">
+                      <Package className="h-5 w-5 text-purple-600 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Status</p>
+                        <p className="text-sm text-gray-700">Waiting for buyer quotes</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Empty State */}
+          {harvests.filter(h => h.status === 'listed').length === 0 && !loadingHarvests && (
+            <div className="card text-center py-12">
+              <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Listed Produce</h3>
+              <p className="text-gray-600 mb-4">
+                List your harvest ready crops to connect with buyers
+              </p>
+              <button
+                onClick={() => setActiveTab('harvest-ready')}
+                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+              >
+                <Package className="h-5 w-5 mr-2" />
+                View Harvest Ready Crops
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -412,17 +1148,20 @@ const HarvestManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Crop Type *
                     </label>
-                    <select
+                    <input
+                      type="text"
                       value={formData.cropType}
                       onChange={(e) => updateField('cropType', e.target.value)}
                       className="input-field"
+                      placeholder="Enter crop type"
                       required
-                    >
-                      <option value="">Select crop type</option>
+                      list="crop-type-suggestions"
+                    />
+                    <datalist id="crop-type-suggestions">
                       {cropTypes.map(crop => (
-                        <option key={crop} value={crop}>{crop}</option>
+                        <option key={crop} value={crop} />
                       ))}
-                    </select>
+                    </datalist>
                   </div>
 
                   <div>
@@ -458,46 +1197,96 @@ const HarvestManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Unit
                     </label>
-                    <select
+                    <input
+                      type="text"
                       value={formData.quantityUnit}
                       onChange={(e) => updateField('quantityUnit', e.target.value)}
                       className="input-field"
-                    >
-                      <option value="quintals">Quintals</option>
-                      <option value="tons">Tons</option>
-                      <option value="kg">Kilograms</option>
-                    </select>
+                      placeholder="e.g., quintals, tons, kg"
+                      list="unit-suggestions-list"
+                    />
+                    <datalist id="unit-suggestions-list">
+                      <option value="quintals" />
+                      <option value="tons" />
+                      <option value="kg" />
+                    </datalist>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Quality Grade
                     </label>
-                    <select
+                    <input
+                      type="text"
                       value={formData.qualityGrade}
                       onChange={(e) => updateField('qualityGrade', e.target.value)}
                       className="input-field"
-                    >
-                      <option value="A">Grade A (Premium)</option>
-                      <option value="B">Grade B (Standard)</option>
-                      <option value="C">Grade C (Basic)</option>
-                    </select>
+                      placeholder="e.g., A, B, C"
+                      list="quality-grade-suggestions"
+                    />
+                    <datalist id="quality-grade-suggestions">
+                      <option value="A" />
+                      <option value="B" />
+                      <option value="C" />
+                    </datalist>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Price per Unit (₹) *
                     </label>
-                    <input
-                      type="number"
-                      value={formData.pricePerUnit}
-                      onChange={(e) => updateField('pricePerUnit', e.target.value)}
-                      className="input-field"
-                      placeholder="Enter price"
-                      required
-                      min="0"
-                      step="0.01"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={formData.pricePerUnit}
+                        onChange={(e) => updateField('pricePerUnit', e.target.value)}
+                        className="input-field flex-1"
+                        placeholder="Enter price"
+                        required
+                        min="0"
+                        step="0.01"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!formData.cropType) {
+                            alert('Please select a crop type first');
+                            return;
+                          }
+                          setFetchingPrice(true);
+                          try {
+                            const response = await apiService.getMarketPrices(
+                              formData.cropType,
+                              formData.location || undefined
+                            );
+                            
+                            if (response && response.prices) {
+                              const cropKey = formData.cropType.toLowerCase();
+                              if (response.prices[cropKey]) {
+                                const priceData = response.prices[cropKey];
+                                // Convert price to per quintal if needed
+                                let pricePerQuintal = priceData.current;
+                                if (priceData.unit.toLowerCase() === 'ton') {
+                                  pricePerQuintal = priceData.current / 10;
+                                } else if (priceData.unit.toLowerCase() === 'kg') {
+                                  pricePerQuintal = priceData.current * 100;
+                                }
+                                updateField('pricePerUnit', pricePerQuintal.toString());
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Failed to fetch price:', error);
+                            alert('Failed to fetch market price. Please enter manually.');
+                          } finally {
+                            setFetchingPrice(false);
+                          }
+                        }}
+                        disabled={fetchingPrice || !formData.cropType}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        {fetchingPrice ? 'Fetching...' : 'Fetch Price'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -595,7 +1384,7 @@ const HarvestManagement = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setActiveTab('overview');
+                  setActiveTab('harvest-ready');
                   setSelectedHarvest(null);
                 }}
                 className="btn-secondary"
@@ -609,6 +1398,609 @@ const HarvestManagement = () => {
                 disabled={loading}
               >
                 {loading ? 'Listing...' : 'List Produce'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* AI Selling Strategy Tab */}
+      {activeTab === 'ai-strategy' && (
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
+              <Sparkles className="h-8 w-8 text-orange-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">AI Selling Strategy</h2>
+            <p className="text-gray-600 mt-2">Get smart recommendations on when and how much to sell for maximum profit</p>
+            {selectedHarvest && (
+              <div className="mt-3 inline-flex items-center px-4 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-orange-600 mr-2" />
+                <span className="text-sm text-orange-900">
+                  Strategy form prefilled from <span className="font-semibold">{selectedHarvest.crop}</span> harvest
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Input Form */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex items-center space-x-2 mb-6">
+                <Package className="h-6 w-6 text-green-600" />
+                <h3 className="text-xl font-semibold text-gray-900">Your Crop Details</h3>
+              </div>
+
+              <form onSubmit={getSellingStrategy} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Crop Type <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={strategyForm.cropType}
+                    onChange={(e) => updateStrategyField('cropType', e.target.value)}
+                    className="input-field"
+                    placeholder="Enter crop type"
+                    list="strategy-crop-suggestions"
+                  />
+                  <datalist id="strategy-crop-suggestions">
+                    {cropTypes.map(crop => (
+                      <option key={crop} value={crop} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Expected Yield <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      required
+                      value={strategyForm.expectedYield}
+                      onChange={(e) => updateStrategyField('expectedYield', e.target.value)}
+                      className="input-field flex-1"
+                      placeholder="Enter quantity"
+                      step="0.01"
+                      min="0"
+                    />
+                    <input
+                      type="text"
+                      value={strategyForm.yieldUnit}
+                      onChange={(e) => updateStrategyField('yieldUnit', e.target.value)}
+                      className="input-field w-32"
+                      placeholder="Unit"
+                      list="strategy-unit-suggestions"
+                    />
+                    <datalist id="strategy-unit-suggestions">
+                      <option value="quintals" />
+                      <option value="tons" />
+                      <option value="kg" />
+                    </datalist>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Expected Harvest Month <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={strategyForm.harvestMonth}
+                    onChange={(e) => updateStrategyField('harvestMonth', e.target.value)}
+                    className="input-field"
+                    placeholder="Enter harvest month"
+                    list="strategy-month-suggestions"
+                  />
+                  <datalist id="strategy-month-suggestions">
+                    {months.map(month => (
+                      <option key={month} value={month} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Market Price (₹/{strategyForm.yieldUnit})
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={strategyForm.currentMarketPrice}
+                      onChange={(e) => updateStrategyField('currentMarketPrice', e.target.value)}
+                      className="input-field flex-1"
+                      placeholder="Enter price or fetch current"
+                      step="0.01"
+                      min="0"
+                    />
+                    <button
+                      type="button"
+                      onClick={fetchCurrentPrice}
+                      disabled={fetchingPrice || !strategyForm.cropType}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                      title="Fetch current market price"
+                    >
+                      {fetchingPrice ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          <span className="hidden sm:inline">Fetching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="h-4 w-4" />
+                          <span className="hidden sm:inline">Fetch Price</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Click "Fetch Price" to get current market rate or leave empty for auto-fetch
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Storage Available?
+                  </label>
+                  <select
+                    value={strategyForm.storageAvailable}
+                    onChange={(e) => updateStrategyField('storageAvailable', e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="yes">Yes - I have storage</option>
+                    <option value="no">No - Must sell immediately</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Your Location
+                  </label>
+                  <input
+                    type="text"
+                    value={strategyForm.location}
+                    onChange={(e) => updateStrategyField('location', e.target.value)}
+                    className="input-field"
+                    placeholder="District, State (optional)"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={strategyLoading}
+                  className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {strategyLoading ? (
+                    <span className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Analyzing...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <Sparkles className="h-5 w-5 mr-2" />
+                      Get AI Strategy
+                    </span>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* AI Strategy Results */}
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg shadow-lg p-6">
+              <div className="flex items-center space-x-2 mb-6">
+                <Lightbulb className="h-6 w-6 text-orange-600" />
+                <h3 className="text-xl font-semibold text-gray-900">AI Recommendations</h3>
+              </div>
+
+              {!strategy ? (
+                <div className="text-center py-12">
+                  <div className="bg-white/50 rounded-full p-6 w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                    <TrendingUp className="h-12 w-12 text-orange-400" />
+                  </div>
+                  <p className="text-gray-600 mb-2">Fill in your crop details</p>
+                  <p className="text-sm text-gray-500">Get personalized selling strategy based on market trends and price predictions</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                  {/* Main Recommendation */}
+                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                    <div className="flex items-start space-x-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-1 text-sm">Strategy Summary</h4>
+                        <p className="text-gray-700 text-sm leading-relaxed">{strategy.summary}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sell Now vs Store Split */}
+                  {strategy.sellNowPercentage !== undefined && (
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <h4 className="font-semibold text-gray-900 mb-3 text-sm">Recommended Split</h4>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-medium text-gray-700">Sell Immediately</span>
+                            <span className="text-sm font-bold text-green-600">{strategy.sellNowPercentage}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-green-600 h-2 rounded-full transition-all duration-500"
+                              style={{ width: `${strategy.sellNowPercentage}%` }}
+                            ></div>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            ≈ {((parseFloat(strategyForm.expectedYield) * strategy.sellNowPercentage) / 100).toFixed(2)} {strategyForm.yieldUnit}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-medium text-gray-700">Store for Later</span>
+                            <span className="text-sm font-bold text-blue-600">{strategy.storeLaterPercentage}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                              style={{ width: `${strategy.storeLaterPercentage}%` }}
+                            ></div>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            ≈ {((parseFloat(strategyForm.expectedYield) * strategy.storeLaterPercentage) / 100).toFixed(2)} {strategyForm.yieldUnit}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price Predictions */}
+                  {strategy.pricePredictions && (
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <h4 className="font-semibold text-gray-900 mb-2 text-sm">Price Trend Forecast</h4>
+                      <div className="space-y-2">
+                        {strategy.pricePredictions.map((pred: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
+                            <div className="flex items-center space-x-2">
+                              <Calendar className="h-3 w-3 text-gray-400" />
+                              <span className="text-xs text-gray-700">{pred.period}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs font-semibold text-gray-900">₹{pred.price}/{strategyForm.yieldUnit}</span>
+                              {pred.change && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  pred.change > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {pred.change > 0 ? '+' : ''}{pred.change}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Profit Comparison */}
+                  {strategy.profitComparison && (
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <h4 className="font-semibold text-gray-900 mb-2 text-sm">Profit Comparison</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Sell All Now</span>
+                          <span className="text-xs font-semibold text-gray-900">₹{strategy.profitComparison.sellAllNow?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Follow AI Strategy (Gross)</span>
+                          <span className="text-xs font-semibold text-blue-600">₹{strategy.profitComparison.followStrategy?.toLocaleString()}</span>
+                        </div>
+                        {strategy.profitComparison.storageCost > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-gray-600">Less: Storage Cost</span>
+                            <span className="text-xs font-semibold text-red-600">-₹{strategy.profitComparison.storageCost?.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {strategy.profitComparison.additionalProfit !== undefined && (
+                          <div className="pt-2 border-t border-gray-200">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-medium text-gray-700">Net Additional Profit</span>
+                              <span className={`text-sm font-bold ${strategy.profitComparison.additionalProfit > 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                                {strategy.profitComparison.additionalProfit > 0 ? '+' : ''}₹{strategy.profitComparison.additionalProfit?.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Key Insights */}
+                  {strategy.insights && strategy.insights.length > 0 && (
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <h4 className="font-semibold text-gray-900 mb-2 text-sm">Key Insights</h4>
+                      <ul className="space-y-1.5">
+                        {strategy.insights.map((insight: string, idx: number) => (
+                          <li key={idx} className="flex items-start space-x-2 text-xs text-gray-700">
+                            <AlertCircle className="h-3 w-3 text-orange-500 flex-shrink-0 mt-0.5" />
+                            <span>{insight}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Confidence Score */}
+                  {strategy.confidence && (
+                    <div className="bg-white rounded-lg p-3 shadow-sm">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs text-gray-600">Confidence Score</span>
+                        <span className="text-xs font-semibold text-gray-900">{strategy.confidence}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-orange-600 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${strategy.confidence}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="space-y-3 pt-2">
+                    {/* Info message */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-xs text-blue-800">
+                        💡 Click "List for Sale" to create a listing with {strategy.sellNowPercentage}% of your harvest ({((parseFloat(strategyForm.expectedYield) * strategy.sellNowPercentage) / 100).toFixed(1)} {strategyForm.yieldUnit}) at the recommended price.
+                      </p>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={resetStrategy}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Try Another Crop
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Calculate the amount to sell now based on AI recommendation
+                          const sellNowAmount = (parseFloat(strategyForm.expectedYield) * strategy.sellNowPercentage) / 100;
+                          
+                          // Get the current or predicted price
+                          const recommendedPrice = strategy.pricePredictions && strategy.pricePredictions.length > 0 
+                            ? strategy.pricePredictions[0].price 
+                            : parseFloat(strategyForm.currentMarketPrice || '0');
+                          
+                          // Prefill the list produce form
+                          setFormData({
+                            cropType: strategyForm.cropType,
+                            variety: '',
+                            quantity: sellNowAmount.toFixed(2),
+                            quantityUnit: strategyForm.yieldUnit,
+                            qualityGrade: 'A',
+                            pricePerUnit: recommendedPrice.toString(),
+                            location: strategyForm.location || '',
+                            availableFrom: new Date().toISOString().split('T')[0],
+                            description: `${strategyForm.cropType} - Following AI selling strategy: Selling ${strategy.sellNowPercentage}% now. ${strategy.summary}`,
+                            images: []
+                          });
+                          
+                          // Switch to list produce tab
+                          setActiveTab('list-produce');
+                          setSelectedHarvest({
+                            crop: strategyForm.cropType,
+                            expectedYield: `${sellNowAmount.toFixed(2)} ${strategyForm.yieldUnit}`,
+                            marketPrice: `₹${recommendedPrice}/${strategyForm.yieldUnit}`
+                          });
+                        }}
+                        className="flex-1 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-1"
+                      >
+                        <Package className="h-4 w-4" />
+                        List for Sale
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark Harvest Ready Form */}
+      {activeTab === 'harvest-ready-form' && harvestReadyForm && (
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+              <CheckCircle className="h-8 w-8 text-blue-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Mark Crop as Harvest Ready</h2>
+            <p className="text-gray-600 mt-2">Update the actual harvest details for {harvestReadyForm.cropType}</p>
+          </div>
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setLoading(true);
+            try {
+              // Update the crop status to ready
+              await apiService.updateCrop(harvestReadyForm.id, {
+                status: 'ready',
+                actualYield: parseFloat(harvestReadyForm.actualYield),
+                yieldUnit: harvestReadyForm.yieldUnit,
+                variety: harvestReadyForm.variety,
+                qualityGrade: harvestReadyForm.qualityGrade,
+                harvestDate: harvestReadyForm.harvestDate,
+                storageLocation: harvestReadyForm.storageLocation,
+                notes: harvestReadyForm.notes
+              });
+
+              alert('Crop marked as harvest ready successfully!');
+              setActiveTab('harvest-ready');
+              setHarvestReadyForm(null);
+              fetchHarvests(); // Refresh the list
+            } catch (error) {
+              console.error('Update crop error:', error);
+              alert('Failed to update crop. Please try again.');
+            } finally {
+              setLoading(false);
+            }
+          }} className="bg-white rounded-lg shadow-lg">
+            <div className="p-6 space-y-6">
+              {/* Crop Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Crop Type <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={harvestReadyForm.cropType}
+                    disabled
+                    className="input-field bg-gray-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Variety (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={harvestReadyForm.variety}
+                    onChange={(e) => setHarvestReadyForm({...harvestReadyForm, variety: e.target.value})}
+                    className="input-field"
+                    placeholder="e.g., Basmati, Hybrid"
+                  />
+                </div>
+              </div>
+
+              {/* Yield Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Actual Yield <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={harvestReadyForm.actualYield}
+                    onChange={(e) => setHarvestReadyForm({...harvestReadyForm, actualYield: e.target.value})}
+                    className="input-field"
+                    placeholder="Enter actual yield"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Unit <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={harvestReadyForm.yieldUnit}
+                    onChange={(e) => setHarvestReadyForm({...harvestReadyForm, yieldUnit: e.target.value})}
+                    className="input-field"
+                    placeholder="e.g., quintals, tons, kg"
+                    list="unit-suggestions"
+                  />
+                  <datalist id="unit-suggestions">
+                    <option value="quintals" />
+                    <option value="tons" />
+                    <option value="kg" />
+                  </datalist>
+                </div>
+              </div>
+
+              {/* Quality and Date */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quality Grade <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={harvestReadyForm.qualityGrade}
+                    onChange={(e) => setHarvestReadyForm({...harvestReadyForm, qualityGrade: e.target.value})}
+                    className="input-field"
+                    placeholder="e.g., A, B, C"
+                    list="grade-suggestions"
+                  />
+                  <datalist id="grade-suggestions">
+                    <option value="A" />
+                    <option value="B" />
+                    <option value="C" />
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Harvest Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={harvestReadyForm.harvestDate}
+                    onChange={(e) => setHarvestReadyForm({...harvestReadyForm, harvestDate: e.target.value})}
+                    className="input-field"
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+              </div>
+
+              {/* Storage Location */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Storage Location (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={harvestReadyForm.storageLocation}
+                  onChange={(e) => setHarvestReadyForm({...harvestReadyForm, storageLocation: e.target.value})}
+                  className="input-field"
+                  placeholder="Where is the harvest stored?"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={harvestReadyForm.notes}
+                  onChange={(e) => setHarvestReadyForm({...harvestReadyForm, notes: e.target.value})}
+                  className="input-field"
+                  rows={3}
+                  placeholder="Any additional notes about the harvest..."
+                />
+              </div>
+            </div>
+
+            {/* Form Actions */}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3 rounded-b-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('planted-crops');
+                  setHarvestReadyForm(null);
+                }}
+                className="btn-secondary"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={loading}
+              >
+                {loading ? 'Updating...' : 'Mark as Ready'}
               </button>
             </div>
           </form>

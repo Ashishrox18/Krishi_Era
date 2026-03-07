@@ -254,51 +254,93 @@ Consider:
   }): Promise<any> {
     this.initialize(); // Lazy initialization
     
+    console.log(`🤖 Groq getSellingStrategy called with:`, {
+      cropType: data.cropType,
+      expectedYield: data.expectedYield,
+      yieldUnit: data.yieldUnit,
+      currentMarketPrice: data.currentMarketPrice,
+      storageAvailable: data.storageAvailable
+    });
+    
     if (!this.enabled || !this.client) {
-      console.log('Using fallback selling strategy (Groq not configured)');
+      console.log('⚠️ Groq not enabled, using fallback selling strategy');
       return this.getFallbackSellingStrategy(data);
     }
 
     try {
       console.log('🤖 Using Groq AI for selling strategy...');
-      const prompt = `You are an agricultural market expert. Analyze the following crop selling scenario and provide a strategic recommendation:
+      
+      // Crop-specific context
+      const cropContext: { [key: string]: string } = {
+        'Wheat': 'Wheat is a stable crop with 12-month storage life. Prices typically dip 10-15% during April-May harvest season and recover by 8-12% over next 3 months.',
+        'Rice': 'Rice has good storage life and prices rise during festival seasons (Diwali, Pongal). Post-harvest prices typically increase 10-15% over 2-3 months.',
+        'Maize': 'Maize has moderate storage (6 months) with steady year-round demand. Prices fluctuate 8-12% seasonally.',
+        'Cotton': 'Cotton is export-dependent with high volatility (15-20%). Can be stored for 24 months. Prices vary significantly based on global markets.',
+        'Potato': 'Potato is semi-perishable (3-month storage) with extreme volatility (25-30%). Prices can double or halve within weeks. Quick sale often recommended.',
+        'Onion': 'Onion has 4-month storage with extreme price swings (30-40%). Market is highly unpredictable. Balanced selling strategy recommended.',
+        'Tomato': 'Tomato is highly perishable (1-2 weeks). Must sell immediately. Prices vary 35-50% daily. Focus on quick sale.',
+        'Soybean': 'Soybean has good storage (12 months) and export-driven pricing. Prices typically rise 8-10% post-harvest.',
+        'Chickpea': 'Chickpea stores well (12 months) with festival demand spikes. Prices rise 12-15% during Diwali season.',
+        'Sugarcane': 'Sugarcane must be sold immediately to mills. No storage option. Price is mill-dependent and relatively stable.',
+        'Mustard': 'Mustard has good storage (12 months) with stable demand. Prices typically rise 8-10% post-harvest due to oil extraction demand.'
+      };
+      
+      const context = cropContext[data.cropType] || 'This crop has moderate storage life and typical seasonal price variations.';
+      
+      // Calculate expected values for validation
+      const basePrice = data.currentMarketPrice || 5000;
+      const totalYield = data.expectedYield;
+      const sellAllNowExpected = Math.round(totalYield * basePrice);
+      
+      const prompt = `You are an agricultural market expert specializing in Indian crop markets. Analyze this specific scenario:
 
 Crop Details:
 - Crop: ${data.cropType}
 - Expected Yield: ${data.expectedYield} ${data.yieldUnit}
 - Harvest Month: ${data.harvestMonth}
-- Current Market Price: ${data.currentMarketPrice ? `₹${data.currentMarketPrice}/${data.yieldUnit}` : 'Not provided'}
+- Current Market Price: ₹${data.currentMarketPrice || basePrice}/${data.yieldUnit}
 - Storage Available: ${data.storageAvailable ? 'Yes' : 'No'}
 - Location: ${data.location || 'Not specified'}
 
-Based on historical price trends, seasonal patterns, and market dynamics for ${data.cropType}, provide:
+Market Context for ${data.cropType}:
+${context}
 
-1. A clear recommendation on what percentage to sell immediately vs store for later
-2. Price predictions for the next 1, 2, and 3 months
-3. Profit comparison between selling all now vs following the recommended strategy
-4. 3-4 key insights about market conditions and timing
-5. Confidence score (0-100) for this recommendation
+CRITICAL CALCULATION REQUIREMENTS:
+1. "sellAllNow" MUST equal: ${data.expectedYield} × ${basePrice} = ₹${sellAllNowExpected}
+2. Use the EXACT yield amount (${data.expectedYield} ${data.yieldUnit}) in all calculations
+3. Price predictions must be based on the current price of ₹${basePrice}
+4. All profit calculations must use these exact numbers
 
-Respond ONLY with valid JSON in this exact structure (no markdown):
+Your recommendations must be SPECIFIC to ${data.cropType}'s characteristics:
+- Consider its storage life and perishability
+- Account for its typical price volatility patterns
+- Factor in seasonal demand patterns
+- Use realistic price predictions based on historical ${data.cropType} market data
+
+${data.storageAvailable ? 
+  'Provide a split strategy (e.g., 30% sell now, 70% store) based on crop characteristics.' : 
+  'Storage is NOT available - recommend selling 100% immediately.'}
+
+Respond ONLY with valid JSON (no markdown):
 {
-  "summary": "Brief 2-3 sentence summary of the strategy",
-  "sellNowPercentage": 40,
-  "storeLaterPercentage": 60,
+  "summary": "Brief 2-3 sentence summary specific to ${data.cropType}",
+  "sellNowPercentage": ${data.storageAvailable ? '30-70' : '100'},
+  "storeLaterPercentage": ${data.storageAvailable ? '30-70' : '0'},
   "pricePredictions": [
-    {"period": "1 month", "price": 2300, "change": 4.5},
-    {"period": "2 months", "price": 2500, "change": 13.6},
-    {"period": "3 months", "price": 2400, "change": 9.1}
+    {"period": "1 month", "price": <calculate from base price>, "change": <percentage>},
+    {"period": "2 months", "price": <calculate from base price>, "change": <percentage>},
+    {"period": "3 months", "price": <calculate from base price>, "change": <percentage>}
   ],
   "profitComparison": {
-    "sellAllNow": 220000,
-    "followStrategy": 238000,
-    "additionalProfit": 18000
+    "sellAllNow": ${sellAllNowExpected},
+    "followStrategy": <calculate based on strategy>,
+    "additionalProfit": <followStrategy - sellAllNow>
   },
-  "insights": ["insight1", "insight2", "insight3", "insight4"],
-  "confidence": 82
+  "insights": ["${data.cropType}-specific insight1", "insight2", "insight3", "insight4"],
+  "confidence": 75-95
 }
 
-Provide realistic, data-driven recommendations based on typical market behavior for ${data.cropType} in India. Use actual numbers and be specific.`;
+VERIFY: sellAllNow MUST be exactly ₹${sellAllNowExpected} (${data.expectedYield} × ${basePrice})`;
 
       const completion = await this.client.chat.completions.create({
         messages: [
@@ -327,6 +369,20 @@ Provide realistic, data-driven recommendations based on typical market behavior 
       }
       
       const result = JSON.parse(cleanedResponse);
+      
+      // Validate and correct the sellAllNow calculation if AI got it wrong
+      const expectedSellAllNow = Math.round(data.expectedYield * (data.currentMarketPrice || 5000));
+      if (result.profitComparison && Math.abs(result.profitComparison.sellAllNow - expectedSellAllNow) > 1000) {
+        console.log(`⚠️ AI calculation mismatch - Correcting sellAllNow from ${result.profitComparison.sellAllNow} to ${expectedSellAllNow}`);
+        result.profitComparison.sellAllNow = expectedSellAllNow;
+        
+        // Recalculate additional profit
+        if (result.profitComparison.followStrategy) {
+          result.profitComparison.additionalProfit = result.profitComparison.followStrategy - expectedSellAllNow;
+        }
+      }
+      
+      console.log(`✅ Groq AI response validated and corrected if needed`);
       return result;
     } catch (error) {
       console.error('Groq API error:', error);
@@ -335,60 +391,159 @@ Provide realistic, data-driven recommendations based on typical market behavior 
   }
 
   private getFallbackSellingStrategy(data: any): any {
-    // Fallback strategy based on common agricultural practices
-    const basePrice = data.currentMarketPrice || 2000;
+    console.log(`📊 Fallback Strategy - Input Data:`, {
+      cropType: data.cropType,
+      expectedYield: data.expectedYield,
+      yieldUnit: data.yieldUnit,
+      currentMarketPrice: data.currentMarketPrice,
+      storageAvailable: data.storageAvailable
+    });
+    
+    // Crop-specific market data
+    const cropData: { [key: string]: { basePrice: number; volatility: number; seasonalPattern: string; storageLife: number } } = {
+      'Wheat': { basePrice: 2200, volatility: 0.08, seasonalPattern: 'Post-harvest dip in April-May', storageLife: 12 },
+      'Rice': { basePrice: 2000, volatility: 0.10, seasonalPattern: 'Price rise during festival season', storageLife: 12 },
+      'Maize': { basePrice: 1800, volatility: 0.12, seasonalPattern: 'Steady demand year-round', storageLife: 6 },
+      'Cotton': { basePrice: 7500, volatility: 0.15, seasonalPattern: 'Global market dependent', storageLife: 24 },
+      'Potato': { basePrice: 1200, volatility: 0.25, seasonalPattern: 'High volatility, quick sale recommended', storageLife: 3 },
+      'Onion': { basePrice: 1500, volatility: 0.30, seasonalPattern: 'Extreme price swings', storageLife: 4 },
+      'Tomato': { basePrice: 1800, volatility: 0.35, seasonalPattern: 'Highly perishable', storageLife: 1 },
+      'Soybean': { basePrice: 4200, volatility: 0.10, seasonalPattern: 'Export-driven pricing', storageLife: 12 },
+      'Chickpea': { basePrice: 5200, volatility: 0.12, seasonalPattern: 'Festival demand spike', storageLife: 12 },
+      'Sugarcane': { basePrice: 350, volatility: 0.05, seasonalPattern: 'Mill-dependent pricing', storageLife: 0 }
+    };
+
+    const crop = cropData[data.cropType] || { basePrice: 2000, volatility: 0.10, seasonalPattern: 'Moderate', storageLife: 6 };
+    const basePrice = data.currentMarketPrice || crop.basePrice;
     const totalYield = data.expectedYield;
     
-    // Default strategy: sell 30% now, store 70% if storage available
-    const sellNow = data.storageAvailable ? 30 : 100;
-    const storeLater = data.storageAvailable ? 70 : 0;
+    // Strategy varies by crop characteristics
+    let sellNow, storeLater;
+    
+    if (crop.storageLife <= 1) {
+      // Perishable crops - sell immediately
+      sellNow = 100;
+      storeLater = 0;
+    } else if (crop.storageLife <= 4) {
+      // Short storage life - sell most now
+      sellNow = data.storageAvailable ? 70 : 100;
+      storeLater = data.storageAvailable ? 30 : 0;
+    } else if (crop.volatility > 0.20) {
+      // High volatility - balanced approach
+      sellNow = data.storageAvailable ? 50 : 100;
+      storeLater = data.storageAvailable ? 50 : 0;
+    } else {
+      // Stable crops with good storage - store more
+      sellNow = data.storageAvailable ? 30 : 100;
+      storeLater = data.storageAvailable ? 70 : 0;
+    }
 
     const sellNowAmount = (totalYield * sellNow) / 100;
     const storeLaterAmount = (totalYield * storeLater) / 100;
 
-    // Price predictions (typically 5-15% increase over 3 months)
-    const price1Month = Math.round(basePrice * 1.05);
-    const price2Months = Math.round(basePrice * 1.10);
-    const price3Months = Math.round(basePrice * 1.08);
+    // Price predictions based on crop volatility and seasonal patterns
+    const priceIncrease1 = 1 + (crop.volatility * 0.5);
+    const priceIncrease2 = 1 + (crop.volatility * 1.0);
+    const priceIncrease3 = 1 + (crop.volatility * 0.8);
+    
+    const price1Month = Math.round(basePrice * priceIncrease1);
+    const price2Months = Math.round(basePrice * priceIncrease2);
+    const price3Months = Math.round(basePrice * priceIncrease3);
 
     // Profit calculations
+    console.log(`💰 Profit Calculation Debug:`);
+    console.log(`   - Total Yield: ${totalYield} ${data.yieldUnit}`);
+    console.log(`   - Base Price: ₹${basePrice}/${data.yieldUnit}`);
+    console.log(`   - Sell Now Amount: ${sellNowAmount} ${data.yieldUnit}`);
+    console.log(`   - Store Later Amount: ${storeLaterAmount} ${data.yieldUnit}`);
+    
     const sellAllNow = Math.round(totalYield * basePrice);
+    console.log(`   - Sell All Now: ${totalYield} × ${basePrice} = ₹${sellAllNow}`);
+    
+    // For follow strategy: sell some now, rest later at predicted prices
+    // Assuming stored portion is sold gradually: 30% in month 1, 40% in month 2, 30% in month 3
     const followStrategy = Math.round(
       (sellNowAmount * basePrice) + 
       (storeLaterAmount * 0.3 * price1Month) +
       (storeLaterAmount * 0.4 * price2Months) +
       (storeLaterAmount * 0.3 * price3Months)
     );
+    console.log(`   - Follow Strategy: ₹${followStrategy}`);
+    
     const additionalProfit = followStrategy - sellAllNow;
+    
+    // Storage costs (approximately 2-3% of value per month)
+    const storageCostPerMonth = basePrice * 0.025;
+    const avgStorageMonths = 2; // Average storage duration
+    const totalStorageCost = Math.round(storeLaterAmount * storageCostPerMonth * avgStorageMonths);
+    console.log(`   - Storage Cost: ₹${totalStorageCost}`);
+    
+    // Net additional profit after storage costs
+    const netAdditionalProfit = additionalProfit - totalStorageCost;
+    console.log(`   - Net Additional Profit: ₹${netAdditionalProfit}`);
+
+    // Crop-specific insights
+    const getInsights = () => {
+      if (crop.storageLife <= 1) {
+        return [
+          `${data.cropType} is highly perishable - immediate sale is critical`,
+          'Focus on finding buyers before harvest to avoid losses',
+          'Consider cold storage facilities for small quantities',
+          'Price negotiation should prioritize quick sale over maximum price'
+        ];
+      } else if (crop.volatility > 0.20) {
+        return [
+          `${data.cropType} has high price volatility - ${crop.seasonalPattern}`,
+          'Diversify selling across multiple time periods to average out prices',
+          'Monitor daily market rates and be ready to sell when prices spike',
+          'Consider forward contracts to lock in minimum prices'
+        ];
+      } else if (data.storageAvailable) {
+        return [
+          `${data.cropType} prices typically rise ${Math.round(crop.volatility * 100)}% over 2-3 months post-harvest`,
+          `Storage life of ${crop.storageLife} months allows flexible selling`,
+          crop.seasonalPattern,
+          'Monitor market prices weekly to identify optimal selling windows'
+        ];
+      } else {
+        return [
+          'Without storage, immediate sale is the safest option',
+          `${data.cropType} can be stored for ${crop.storageLife} months with proper facilities`,
+          'Consider partnering with local warehouses for future harvests',
+          'Government warehouse receipt schemes can provide better prices'
+        ];
+      }
+    };
+
+    const getSummary = () => {
+      if (crop.storageLife <= 1) {
+        return `${data.cropType} is highly perishable. Sell 100% immediately to avoid spoilage losses. Focus on finding buyers before harvest.`;
+      } else if (!data.storageAvailable) {
+        return `Without storage facilities, sell your entire ${data.cropType} harvest immediately. Consider investing in storage for future harvests to maximize profits.`;
+      } else if (crop.volatility > 0.20) {
+        return `${data.cropType} has high price volatility. Recommend selling ${sellNow}% now and ${storeLater}% gradually over next 2-3 months to average out price fluctuations.`;
+      } else {
+        return `Based on market trends for ${data.cropType}, sell ${sellNow}% immediately to cover costs and store ${storeLater}% for better prices. Expected price increase of ${Math.round(crop.volatility * 100)}% over next 2-3 months.`;
+      }
+    };
 
     return {
-      summary: data.storageAvailable 
-        ? `Based on market trends for ${data.cropType}, we recommend selling ${sellNow}% immediately to cover costs and storing ${storeLater}% for better prices. Expected price increase of 8-10% over next 2-3 months.`
-        : `Without storage facilities, we recommend selling your entire harvest immediately. Consider investing in storage for future harvests to maximize profits.`,
+      summary: getSummary(),
       sellNowPercentage: sellNow,
       storeLaterPercentage: storeLater,
       pricePredictions: [
-        { period: '1 month', price: price1Month, change: 5.0 },
-        { period: '2 months', price: price2Months, change: 10.0 },
-        { period: '3 months', price: price3Months, change: 8.0 }
+        { period: '1 month', price: price1Month, change: Math.round((price1Month - basePrice) / basePrice * 100 * 10) / 10 },
+        { period: '2 months', price: price2Months, change: Math.round((price2Months - basePrice) / basePrice * 100 * 10) / 10 },
+        { period: '3 months', price: price3Months, change: Math.round((price3Months - basePrice) / basePrice * 100 * 10) / 10 }
       ],
       profitComparison: {
         sellAllNow,
         followStrategy,
-        additionalProfit: data.storageAvailable ? additionalProfit : 0
+        storageCost: data.storageAvailable ? totalStorageCost : 0,
+        additionalProfit: data.storageAvailable ? Math.max(0, netAdditionalProfit) : 0
       },
-      insights: data.storageAvailable ? [
-        `${data.cropType} prices typically rise 8-12% in the 2-3 months post-harvest`,
-        'Ensure proper storage conditions to prevent quality degradation',
-        'Monitor market prices weekly to identify optimal selling windows',
-        'Consider selling in smaller batches to average out price fluctuations'
-      ] : [
-        'Without storage, immediate sale is the safest option',
-        'Consider partnering with local warehouses for future harvests',
-        'Government-backed warehouse receipt schemes can provide better prices',
-        'Negotiate with multiple buyers to get the best immediate price'
-      ],
-      confidence: data.storageAvailable ? 75 : 85
+      insights: getInsights(),
+      confidence: crop.storageLife <= 1 ? 95 : (data.storageAvailable ? 75 : 85)
     };
   }
 }

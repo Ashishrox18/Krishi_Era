@@ -2,20 +2,22 @@ import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { 
   Sprout, Calendar, TrendingUp, 
-  Cloud, Droplets, ThermometerSun, Wind, Package, MapPin, DollarSign,
+  Cloud, Droplets, ThermometerSun, Wind, Package,
   Warehouse, Truck, FileText, ShoppingCart, Lightbulb
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { apiService } from '../../services/api'
+import { useTranslation } from 'react-i18next'
 
 const FarmerDashboard = () => {
+  const { t } = useTranslation();
   const [user, setUser] = useState<any>(null);
-  const [recentListings, setRecentListings] = useState<any[]>([]);
-  const [loadingListings, setLoadingListings] = useState(true);
   const [crops, setCrops] = useState<any[]>([]);
   const [loadingCrops, setLoadingCrops] = useState(true);
   const [weather, setWeather] = useState<any>(null);
   const [loadingWeather, setLoadingWeather] = useState(true);
+  const [cropTips, setCropTips] = useState<{[key: string]: string}>({});
+  const [loadingTips, setLoadingTips] = useState(false);
 
   useEffect(() => {
     // Get user from localStorage
@@ -24,29 +26,116 @@ const FarmerDashboard = () => {
       setUser(JSON.parse(userData));
     }
     
-    loadRecentListings();
     loadCrops();
     loadWeather();
   }, []);
 
-  const loadRecentListings = async () => {
+  // Load AI tips when crops change
+  useEffect(() => {
+    if (crops.length > 0 && !loadingCrops) {
+      loadCropTips();
+    }
+  }, [crops, loadingCrops]);
+
+  const loadCropTips = async () => {
+    const activeCropsFiltered = crops.filter(c => c.status !== 'ready' && c.status !== 'listed');
+    if (activeCropsFiltered.length === 0) return;
+
+    setLoadingTips(true);
+    const tips: {[key: string]: string} = {};
+
+    // Comprehensive crop-specific tips database
+    const cropTipsDatabase: {[key: string]: string} = {
+      'Rice': 'Maintain 2-3 inches of standing water during vegetative stage. Apply nitrogen in 3 splits: basal, tillering, and panicle initiation. Watch for blast disease and stem borers.',
+      'Wheat': 'Irrigate at crown root initiation (21 days), tillering (40 days), flowering (60 days), and grain filling (80 days). Apply nitrogen in 3 doses. Monitor for rust diseases and aphids.',
+      'Cotton': 'Scout regularly for pink bollworm and whitefly. Maintain soil moisture during flowering and boll development. Apply potash for better fiber quality. Remove early squares to prevent pest buildup.',
+      'Maize': 'Apply nitrogen at knee-high stage (30 days) and tasseling. Ensure adequate moisture during tasseling and silking for good pollination. Control fall armyworm with neem-based pesticides.',
+      'Sugarcane': 'Maintain soil moisture throughout growth. Apply potash during grand growth phase (4-7 months) for better sugar content. Earthing up at 90-120 days protects roots and controls weeds.',
+      'Potato': 'Hill up soil when plants are 6 inches tall to prevent greening. Irrigate every 7-10 days. Monitor for late blight in humid weather. Stop irrigation 10 days before harvest.',
+      'Onion': 'Apply nitrogen in splits at 30 and 45 days. Stop irrigation 10-15 days before harvest for better storage. Cure bulbs in shade for 7-10 days before storage.',
+      'Tomato': 'Stake plants at 15 days and prune suckers weekly. Apply calcium spray to prevent blossom end rot. Monitor for early blight and whitefly. Harvest when fruits show color break.',
+      'Soybean': 'Inoculate seeds with Rhizobium culture before sowing. No nitrogen needed if properly inoculated. Control pod borers during flowering with neem oil. Harvest when 95% pods turn brown.',
+      'Groundnut': 'Apply gypsum at 40-45 days (flowering stage) for better pod development. Maintain soil moisture during pegging and pod formation. Harvest when leaves turn yellow and pods show veining.',
+      'Mustard': 'Irrigate at flowering (35 days) and pod formation (55 days). Apply sulfur for better oil content. Monitor for aphids and spray neem oil if population exceeds threshold.',
+      'Chickpea': 'Avoid waterlogging - chickpea is sensitive to excess moisture. Apply phosphorus and potash at sowing. Spray boron at flowering for better pod set. Harvest when 80% pods turn brown.',
+      'Sunflower': 'Irrigate at head formation and flowering stages. Apply boron spray at bud initiation for better seed filling. Protect heads from birds using nets. Harvest when back of head turns yellow.',
+      'Bajra': 'Apply nitrogen in 2 splits: half at sowing, half at 30 days. Drought tolerant but needs moisture at flowering. Thin seedlings to 10-15 cm spacing for better yield.',
+      'Jowar': 'Apply nitrogen at 30 days after sowing. Tolerates drought but needs moisture during grain filling. Control shoot fly with carbofuran at sowing. Harvest when grains harden.',
+      'Bottle Gourd': 'Provide trellis support for vines. Hand pollinate flowers in early morning (6-8 AM) for better fruit set. Apply compost regularly. Harvest fruits when tender for better taste.',
+      'Brinjal': 'Transplant 30-day seedlings at 60x45 cm spacing. Stake plants for support. Control fruit and shoot borer with pheromone traps. Harvest fruits when glossy and tender.',
+      'Cabbage': 'Transplant at 4-5 leaf stage. Apply nitrogen in 3 splits. Maintain consistent moisture for head formation. Control diamond back moth with Bt spray. Harvest when heads are firm.',
+      'Cauliflower': 'Blanch curds by tying leaves when curd is 5-7 cm diameter. Maintain consistent moisture. Apply boron to prevent hollow stem. Harvest when curds are compact and white.',
+      'Carrot': 'Thin seedlings to 5 cm spacing at 3-4 leaf stage. Maintain consistent moisture for straight roots. Avoid fresh manure which causes forking. Harvest at 90-100 days.',
+      'Chilli': 'Transplant 30-day seedlings. Apply calcium and boron for better fruit set. Control thrips and mites with neem oil. Harvest green or red based on market demand.',
+      'Cucumber': 'Provide support for climbing varieties. Maintain consistent moisture. Apply potash for better fruit quality. Harvest fruits when tender, every 2-3 days.',
+      'Peas': 'Inoculate seeds with Rhizobium. Provide support for climbing varieties. Irrigate at flowering and pod formation. Harvest green pods when fully developed but tender.',
+      'Spinach': 'Sow in lines 20 cm apart. Apply nitrogen in 2-3 splits. Irrigate every 5-7 days. First harvest at 25-30 days, subsequent cuts every 15 days.',
+      'Radish': 'Thin seedlings to 5 cm spacing. Maintain consistent moisture for tender roots. Avoid excess nitrogen which causes forking. Harvest at 30-40 days when roots are tender.',
+    };
+
     try {
-      const response = await apiService.getMyListings();
-      // Get only the 3 most recent listings
-      const listings = response.requests || [];
-      console.log('📦 Loaded farmer listings:', listings.length);
-      setRecentListings(listings.slice(0, 3));
+      // Get tips for up to 3 crops
+      const cropsToFetch = activeCropsFiltered.slice(0, 3);
+      
+      for (const crop of cropsToFetch) {
+        const cropName = crop.cropType || crop.name;
+        
+        // First try to get from database
+        if (cropTipsDatabase[cropName]) {
+          tips[cropName] = cropTipsDatabase[cropName];
+        } else {
+          // If not in database, try AI API
+          try {
+            const response = await apiService.getCropRecommendations({
+              cropType: cropName,
+              landSize: parseFloat(crop.area) || 1,
+              soilType: crop.soilType || 'loam',
+              season: 'current',
+              location: user?.location || ''
+            });
+
+            if (response && response.recommendations && response.recommendations.length > 0) {
+              const recommendation = response.recommendations[0];
+              tips[cropName] = recommendation.careTips || recommendation.description || 
+                cropTipsDatabase[cropName] || 
+                `Apply balanced fertilizer and maintain proper irrigation for ${cropName}. Monitor regularly for pests and diseases.`;
+            } else {
+              tips[cropName] = `Apply balanced fertilizer and maintain proper irrigation for ${cropName}. Monitor regularly for pests and diseases.`;
+            }
+          } catch (error) {
+            console.error(`Failed to get AI tips for ${cropName}:`, error);
+            tips[cropName] = `Apply balanced fertilizer and maintain proper irrigation for ${cropName}. Monitor regularly for pests and diseases.`;
+          }
+        }
+      }
+
+      setCropTips(tips);
     } catch (error) {
-      console.error('Failed to load listings:', error);
+      console.error('Failed to load crop tips:', error);
     } finally {
-      setLoadingListings(false);
+      setLoadingTips(false);
     }
   };
 
   const loadCrops = async () => {
     try {
       const response = await apiService.getCrops();
-      setCrops(response.crops || []);
+      const cropsWithDays = (response.crops || []).map((crop: any) => {
+        // Calculate days to harvest
+        const plantingDate = new Date(crop.plantingDate);
+        const harvestDate = new Date(plantingDate);
+        harvestDate.setDate(harvestDate.getDate() + (crop.duration || 90));
+        
+        const daysRemaining = Math.ceil(
+          (harvestDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        
+        return {
+          ...crop,
+          daysToHarvest: Math.max(0, daysRemaining)
+        };
+      });
+      setCrops(cropsWithDays);
     } catch (error) {
       console.error('Failed to load crops:', error);
     } finally {
@@ -116,23 +205,24 @@ const FarmerDashboard = () => {
     { day: 'Sun', temp: 32, rainfall: 0 },
   ]
 
-  // Calculate stats from real data
-  const totalLand = crops.reduce((sum, crop) => sum + (parseFloat(crop.area) || 0), 0);
-  const activeCrops = crops.filter(c => c.status === 'Growing' || c.status === 'Planted').length;
-  const expectedYield = crops.reduce((sum, crop) => sum + (crop.expectedYield || 0), 0);
-  const estimatedRevenue = crops.reduce((sum, crop) => sum + ((crop.expectedYield || 0) * (crop.estimatedPrice || 0)), 0);
+  // Calculate stats from real data (excluding harvest ready and listed crops)
+  const activeCropsFiltered = crops.filter(c => c.status !== 'ready' && c.status !== 'listed');
+  
+  const totalLand = activeCropsFiltered.reduce((sum, crop) => sum + (parseFloat(crop.area) || 0), 0);
+  const activeCrops = activeCropsFiltered.length;
+  const expectedYield = activeCropsFiltered.reduce((sum, crop) => sum + (crop.expectedYield || 0), 0);
+  
+  // Calculate actual revenue from sold crops only (crops with status 'sold' and actualRevenue)
+  const actualRevenue = crops
+    .filter(c => c.status === 'sold' && c.actualRevenue)
+    .reduce((sum, crop) => sum + (crop.actualRevenue || 0), 0);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Farmer Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back, {user?.name || 'Farmer'}</p>
-        </div>
-        <Link to="/farmer/crop-planning" className="btn-primary">
-          Plan New Crop
-        </Link>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">{t('dashboard.title')}</h1>
+        <p className="text-gray-600 mt-1">{t('dashboard.welcomeBack')}, {user?.name || 'Farmer'}</p>
       </div>
 
       {/* Quick Stats */}
@@ -140,8 +230,8 @@ const FarmerDashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Land</p>
-              <p className="text-2xl font-bold text-gray-900">{totalLand.toFixed(1)} acres</p>
+              <p className="text-sm text-gray-600">{t('dashboard.totalLand')}</p>
+              <p className="text-2xl font-bold text-gray-900">{totalLand.toFixed(1)} {t('dashboard.acres')}</p>
             </div>
             <Sprout className="h-8 w-8 text-primary-600" />
           </div>
@@ -149,7 +239,7 @@ const FarmerDashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Active Crops</p>
+              <p className="text-sm text-gray-600">{t('dashboard.activeCrops')}</p>
               <p className="text-2xl font-bold text-gray-900">{activeCrops}</p>
             </div>
             <Calendar className="h-8 w-8 text-blue-600" />
@@ -158,8 +248,8 @@ const FarmerDashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Expected Yield</p>
-              <p className="text-2xl font-bold text-gray-900">{expectedYield.toFixed(0)} tons</p>
+              <p className="text-sm text-gray-600">{t('dashboard.expectedYield')}</p>
+              <p className="text-2xl font-bold text-gray-900">{expectedYield.toFixed(0)} {t('dashboard.tons')}</p>
             </div>
             <TrendingUp className="h-8 w-8 text-green-600" />
           </div>
@@ -167,8 +257,8 @@ const FarmerDashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Est. Revenue</p>
-              <p className="text-2xl font-bold text-gray-900">₹{(estimatedRevenue / 100000).toFixed(1)}L</p>
+              <p className="text-sm text-gray-600">{t('dashboard.totalRevenue')}</p>
+              <p className="text-2xl font-bold text-gray-900">₹{(actualRevenue / 100000).toFixed(1)}L</p>
             </div>
             <TrendingUp className="h-8 w-8 text-orange-600" />
           </div>
@@ -182,43 +272,39 @@ const FarmerDashboard = () => {
           {/* Current Crops */}
           <div className="card">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Current Crops</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{t('dashboard.currentCrops')}</h2>
               <Link to="/farmer/harvest" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                View All
+                {t('dashboard.viewAll')}
               </Link>
             </div>
             {loadingCrops ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2 text-sm">Loading crops...</p>
+                <p className="text-gray-600 mt-2 text-sm">{t('common.loading')}</p>
               </div>
-            ) : crops.length === 0 ? (
+            ) : crops.filter(crop => crop.status !== 'ready' && crop.status !== 'listed').length === 0 ? (
               <div className="text-center py-8">
                 <Sprout className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 mb-3">No crops planted yet</p>
+                <p className="text-gray-600 mb-3">
+                  {crops.length === 0 ? t('dashboard.noCropsPlanted') : t('dashboard.allCropsHarvested')}
+                </p>
                 <Link
                   to="/farmer/crop-planning"
                   className="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition text-sm"
                 >
-                  Plan Your First Crop
+                  {crops.length === 0 ? t('dashboard.planFirstCrop') : t('dashboard.planNewCrop')}
                 </Link>
               </div>
             ) : (
               <div className="space-y-3">
-                {crops.slice(0, 3).map((crop) => (
-                  <div key={crop.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-                        <Sprout className="h-6 w-6 text-primary-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{crop.cropType || crop.name}</h3>
-                        <p className="text-sm text-gray-600">{crop.area} acres • {crop.status}</p>
-                      </div>
+                {crops.filter(crop => crop.status !== 'ready' && crop.status !== 'listed').slice(0, 3).map((crop) => (
+                  <div key={crop.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
+                      <Sprout className="h-6 w-6 text-primary-600" />
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">{crop.daysToHarvest || 0} days</p>
-                      <p className="text-sm text-gray-600">{crop.health || 'Good'}</p>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{crop.cropType || crop.name}</h3>
+                      <p className="text-sm text-gray-600">{crop.area} acres • {crop.status}</p>
                     </div>
                   </div>
                 ))}
@@ -226,89 +312,125 @@ const FarmerDashboard = () => {
             )}
           </div>
 
-          {/* Recent Listings Section */}
+          {/* Farming Tips & News Section */}
           <div className="card">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Recent Listings</h2>
-              <Link to="/farmer/my-listings" className="text-green-600 hover:text-green-700 text-sm font-medium">
-                View All →
-              </Link>
+            <div className="flex items-center space-x-2 mb-4">
+              <Lightbulb className="h-6 w-6 text-orange-500" />
+              <h2 className="text-xl font-semibold text-gray-900">
+                {activeCropsFiltered.length > 0 ? t('dashboard.tipsForYourCrops') : t('dashboard.farmingTips')}
+              </h2>
             </div>
 
-            {loadingListings ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2 text-sm">Loading listings...</p>
-              </div>
-            ) : recentListings.length === 0 ? (
-              <div className="text-center py-8">
-                <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 mb-3">No listings yet</p>
-                <Link
-                  to="/farmer/harvest"
-                  className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
-                >
-                  Create Your First Listing
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentListings.map((listing) => (
-                  <div key={listing.id} className="border border-gray-200 rounded-lg p-4 hover:border-green-300 transition">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {listing.cropType} {listing.variety && `(${listing.variety})`}
-                          </h3>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            listing.status === 'open' ? 'bg-green-100 text-green-700' :
-                            listing.status === 'negotiating' ? 'bg-yellow-100 text-yellow-700' :
-                            listing.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {listing.status}
-                          </span>
-                        </div>
+            <div className="space-y-4">
+              {/* Show crop-specific tips if crops are planted */}
+              {activeCropsFiltered.length > 0 ? (
+                <>
+                  {loadingTips ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                      <p className="text-gray-600 mt-2 text-sm">{t('common.loadingTips')}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {activeCropsFiltered.slice(0, 3).map((crop, index) => {
+                        const cropName = crop.cropType || crop.name;
+                        const tip = cropTips[cropName] || `Monitor ${cropName} regularly. Ensure proper irrigation, fertilization, and pest management for best results.`;
                         
-                        <div className="grid grid-cols-3 gap-3 text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <Package className="h-4 w-4 mr-1.5" />
-                            <span>{listing.quantity} {listing.quantityUnit}</span>
+                        return (
+                          <div key={index} className="border-l-4 border-green-500 bg-green-50 p-4 rounded-r-lg">
+                            <div className="flex items-start space-x-3">
+                              <Sprout className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <h3 className="font-semibold text-gray-900 mb-1">{cropName} {t('common.careTips')}</h3>
+                                <p className="text-sm text-gray-700">{tip}</p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center">
-                            <DollarSign className="h-4 w-4 mr-1.5" />
-                            <span>₹{listing.minimumPrice}/{listing.quantityUnit}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <MapPin className="h-4 w-4 mr-1.5" />
-                            <span className="truncate">{listing.pickupLocation}</span>
+                        );
+                      })}
+                      
+                      {/* Water Management Tip */}
+                      <div className="border-l-4 border-blue-500 bg-blue-50 p-4 rounded-r-lg">
+                        <div className="flex items-start space-x-3">
+                          <Droplets className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h3 className="font-semibold text-gray-900 mb-1">{t('tips.waterManagement')}</h3>
+                            <p className="text-sm text-gray-700">
+                              {t('tips.waterManagementDesc')}
+                            </p>
                           </div>
                         </div>
-
-                        {listing.quotesCount > 0 && (
-                          <div className="mt-2 text-sm">
-                            <span className="text-green-600 font-medium">{listing.quotesCount} quotes received</span>
-                            {listing.currentBestOffer > 0 && (
-                              <span className="text-gray-600 ml-2">
-                                • Best: ₹{listing.currentBestOffer}/{listing.quantityUnit}
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
-
-                      <Link
-                        to="/farmer/my-listings"
-                        className="ml-4 px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-                      >
-                        Manage
-                      </Link>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Default tips when no crops are planted */}
+                  <div className="border-l-4 border-green-500 bg-green-50 p-4 rounded-r-lg">
+                    <div className="flex items-start space-x-3">
+                      <Sprout className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 mb-1">{t('tips.optimalPlanting')}</h3>
+                        <p className="text-sm text-gray-700">
+                          {t('tips.optimalPlantingDesc')}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                ))}
+
+                  <div className="border-l-4 border-blue-500 bg-blue-50 p-4 rounded-r-lg">
+                    <div className="flex items-start space-x-3">
+                      <Droplets className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 mb-1">{t('tips.waterManagement')}</h3>
+                        <p className="text-sm text-gray-700">
+                          {t('tips.waterManagementDescLong')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-l-4 border-orange-500 bg-orange-50 p-4 rounded-r-lg">
+                    <div className="flex items-start space-x-3">
+                      <TrendingUp className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 mb-1">{t('tips.marketTrends')}</h3>
+                        <p className="text-sm text-gray-700">
+                          {t('tips.marketTrendsDesc')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-l-4 border-purple-500 bg-purple-50 p-4 rounded-r-lg">
+                    <div className="flex items-start space-x-3">
+                      <Warehouse className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900 mb-1">{t('tips.postHarvestStorage')}</h3>
+                        <p className="text-sm text-gray-700">
+                          {t('tips.postHarvestStorageDesc')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Government Scheme - Always show */}
+              <div className="border border-gray-200 bg-gray-50 p-4 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <FileText className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1">{t('tips.governmentScheme')}</h3>
+                    <p className="text-sm text-gray-700 mb-2">
+                      {t('tips.governmentSchemeDesc')}
+                    </p>
+                    <p className="text-xs text-gray-500">{t('common.updatedDaysAgo', { days: 2 })}</p>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -317,7 +439,7 @@ const FarmerDashboard = () => {
           {/* Weather Widget */}
           <div className="card">
             <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Weather Forecast</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{t('dashboard.weatherForecast')}</h2>
               {weather?.location && (
                 <div className="flex items-center text-xs text-gray-500">
                   <MapPin className="h-3 w-3 mr-1" />
@@ -328,7 +450,7 @@ const FarmerDashboard = () => {
             {loadingWeather ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2 text-sm">Detecting location...</p>
+                <p className="text-gray-600 mt-2 text-sm">{t('common.loading')}</p>
               </div>
             ) : (
               <>
@@ -336,29 +458,29 @@ const FarmerDashboard = () => {
                   <div className="flex items-center space-x-2">
                     <ThermometerSun className="h-5 w-5 text-orange-500" />
                     <div>
-                      <p className="text-xs text-gray-600">Temperature</p>
+                      <p className="text-xs text-gray-600">{t('dashboard.temperature')}</p>
                       <p className="font-semibold">{weather?.current?.temperature || 28}°C</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Droplets className="h-5 w-5 text-blue-500" />
                     <div>
-                      <p className="text-xs text-gray-600">Humidity</p>
+                      <p className="text-xs text-gray-600">{t('dashboard.humidity')}</p>
                       <p className="font-semibold">{weather?.current?.humidity || 65}%</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Wind className="h-5 w-5 text-gray-500" />
                     <div>
-                      <p className="text-xs text-gray-600">Wind</p>
+                      <p className="text-xs text-gray-600">{t('dashboard.wind')}</p>
                       <p className="font-semibold">{weather?.current?.windSpeed || 12} km/h</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Cloud className="h-5 w-5 text-gray-400" />
                     <div>
-                      <p className="text-xs text-gray-600">Conditions</p>
-                      <p className="font-semibold">{weather?.current?.conditions || 'Partly Cloudy'}</p>
+                      <p className="text-xs text-gray-600">{t('dashboard.conditions')}</p>
+                      <p className="font-semibold">{weather?.current?.conditions || t('dashboard.partlyCloudy')}</p>
                     </div>
                   </div>
                 </div>
@@ -380,7 +502,7 @@ const FarmerDashboard = () => {
 
           {/* Quick Actions */}
           <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('dashboard.quickActions')}</h2>
             <div className="space-y-3">
               {/* Primary Actions */}
               <div className="grid grid-cols-2 gap-3">
@@ -389,32 +511,19 @@ const FarmerDashboard = () => {
                   className="p-3 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg hover:shadow-lg transition text-center"
                 >
                   <Sprout className="h-6 w-6 mx-auto mb-1" />
-                  <p className="text-sm font-semibold">Plan Crop</p>
+                  <p className="text-sm font-semibold">{t('dashboard.planCrop')}</p>
                 </Link>
                 <Link
                   to="/farmer/harvest"
                   className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-lg hover:shadow-lg transition text-center"
                 >
                   <Package className="h-6 w-6 mx-auto mb-1" />
-                  <p className="text-sm font-semibold">Manage Harvest</p>
+                  <p className="text-sm font-semibold">{t('dashboard.manageHarvest')}</p>
                 </Link>
               </div>
 
               {/* Secondary Actions */}
               <div className="space-y-2">
-                <Link
-                  to="/farmer/selling-strategy"
-                  className="flex items-center p-3 bg-orange-50 hover:bg-orange-100 rounded-lg transition group"
-                >
-                  <div className="w-10 h-10 bg-orange-100 group-hover:bg-orange-200 rounded-lg flex items-center justify-center mr-3">
-                    <Lightbulb className="h-5 w-5 text-orange-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900 text-sm">AI Selling Strategy</p>
-                    <p className="text-xs text-gray-600">Get smart pricing insights</p>
-                  </div>
-                </Link>
-
                 <Link
                   to="/farmer/browse-procurement-requests"
                   className="flex items-center p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition group"
@@ -423,8 +532,8 @@ const FarmerDashboard = () => {
                     <ShoppingCart className="h-5 w-5 text-blue-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-gray-900 text-sm">Browse Buyer Requests</p>
-                    <p className="text-xs text-gray-600">Find buyers for your produce</p>
+                    <p className="font-semibold text-gray-900 text-sm">{t('dashboard.browseBuyerRequests')}</p>
+                    <p className="text-xs text-gray-600">{t('dashboard.findBuyers')}</p>
                   </div>
                 </Link>
 
@@ -436,8 +545,8 @@ const FarmerDashboard = () => {
                     <Warehouse className="h-5 w-5 text-purple-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-gray-900 text-sm">Warehouses</p>
-                    <p className="text-xs text-gray-600">Check storage availability</p>
+                    <p className="font-semibold text-gray-900 text-sm">{t('nav.warehouses')}</p>
+                    <p className="text-xs text-gray-600">{t('dashboard.checkStorage')}</p>
                   </div>
                 </Link>
 
@@ -449,8 +558,8 @@ const FarmerDashboard = () => {
                     <Truck className="h-5 w-5 text-amber-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-gray-900 text-sm">Transport Vehicles</p>
-                    <p className="text-xs text-gray-600">Book transport for delivery</p>
+                    <p className="font-semibold text-gray-900 text-sm">{t('nav.vehicles')}</p>
+                    <p className="text-xs text-gray-600">{t('dashboard.bookTransport')}</p>
                   </div>
                 </Link>
               </div>

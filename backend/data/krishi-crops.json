@@ -1,41 +1,5 @@
 [
   {
-    "id": "a80a0189-440f-4f77-9242-65f681b93375",
-    "userId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
-    "name": "Test Wheat Crop",
-    "variety": "Durum Wheat",
-    "plantingDate": "2026-01-15",
-    "expectedHarvestDate": "2026-04-15",
-    "area": 5,
-    "location": "Test Farm, Karnataka",
-    "createdAt": "2026-03-05T18:49:18.387Z",
-    "status": "planted"
-  },
-  {
-    "id": "1804b2bf-d1e0-495e-990f-86b4048bdc53",
-    "userId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
-    "name": "Notification Test Wheat",
-    "variety": "Premium Wheat",
-    "plantingDate": "2026-01-15",
-    "expectedHarvestDate": "2026-04-15",
-    "area": 10,
-    "location": "Notification Test Farm, Karnataka",
-    "createdAt": "2026-03-05T18:50:28.363Z",
-    "status": "planted"
-  },
-  {
-    "id": "de3515db-629f-456d-acc1-53568f0a9d4b",
-    "userId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
-    "name": "Notification Test Wheat",
-    "variety": "Premium Wheat",
-    "plantingDate": "2026-01-15",
-    "expectedHarvestDate": "2026-04-15",
-    "area": 10,
-    "location": "Notification Test Farm, Karnataka",
-    "createdAt": "2026-03-05T18:51:15.683Z",
-    "status": "planted"
-  },
-  {
     "id": "87a0c252-1b9e-439b-8602-b7db3857a26c",
     "userId": "bb1c1266-3584-4a08-81eb-66ac57c806cd",
     "name": "Negotiation Test Crop",
@@ -106,5 +70,21 @@
     "expectedYield": 100,
     "createdAt": "2026-03-06T00:55:41.386Z",
     "status": "planted"
+  },
+  {
+    "id": "46a5cb52-f2af-49e3-b55a-54173699f1b1",
+    "userId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
+    "name": "Okra",
+    "area": 2,
+    "plantingDate": "2026-03-07T10:10:50.284Z",
+    "duration": 55,
+    "expectedYield": 2.5,
+    "expectedRevenue": 120000,
+    "status": "planted",
+    "soilType": "clay",
+    "waterNeed": "Medium",
+    "marketDemand": "High",
+    "riskLevel": "Medium",
+    "createdAt": "2026-03-07T10:10:50.295Z"
   }
 ]

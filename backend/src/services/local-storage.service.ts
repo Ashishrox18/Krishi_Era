@@ -115,13 +115,26 @@ export class LocalStorageService {
   }
 
   async delete(tableName: string, key: any) {
-    const data = this.readTable(tableName);
-    const filteredData = data.filter(item => {
-      return !Object.keys(key).every(k => item[k] === key[k]);
-    });
-    
-    this.writeTable(tableName, filteredData);
-    return { success: true };
+    try {
+      const data = this.readTable(tableName);
+      console.log(`🗑️ Deleting from ${tableName} with key:`, key);
+      console.log(`📊 Current data count: ${data.length}`);
+      
+      const filteredData = data.filter(item => {
+        // Check if all key properties match
+        const matches = Object.keys(key).every(k => item[k] === key[k]);
+        return !matches; // Keep items that DON'T match
+      });
+      
+      console.log(`📊 After delete count: ${filteredData.length}`);
+      console.log(`✅ Deleted ${data.length - filteredData.length} item(s)`);
+      
+      this.writeTable(tableName, filteredData);
+      return { success: true };
+    } catch (error) {
+      console.error(`❌ Error deleting from ${tableName}:`, error);
+      throw error;
+    }
   }
 }
 

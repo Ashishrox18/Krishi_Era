@@ -11,9 +11,11 @@ interface AuthRequest extends Request {
   };
 }
 
-const NOTIFICATIONS_TABLE = process.env.DYNAMODB_ORDERS_TABLE!; // Using orders table for notifications
-
 export class NotificationsController {
+  private static get NOTIFICATIONS_TABLE(): string {
+    return process.env.DYNAMODB_NOTIFICATIONS_TABLE!;
+  }
+
   // Get notifications for a user
   async getNotifications(req: AuthRequest, res: Response) {
     try {
@@ -21,7 +23,7 @@ export class NotificationsController {
       console.log('🔔 Getting notifications for user:', userId);
 
       // Get all items from the table
-      const allItems = await dynamoDBService.scan(NOTIFICATIONS_TABLE);
+      const allItems = await dynamoDBService.scan(NotificationsController.NOTIFICATIONS_TABLE);
       console.log('📊 Total items in table:', allItems.length);
       
       // Filter for notifications belonging to this user
@@ -46,7 +48,7 @@ export class NotificationsController {
       const { notificationId } = req.params;
       const userId = req.user!.id;
 
-      const notification = await dynamoDBService.get(NOTIFICATIONS_TABLE, { id: notificationId });
+      const notification = await dynamoDBService.get(NotificationsController.NOTIFICATIONS_TABLE, { id: notificationId });
 
       if (!notification || notification.userId !== userId) {
         return res.status(404).json({ error: 'Notification not found' });
@@ -59,7 +61,7 @@ export class NotificationsController {
         updatedAt: new Date().toISOString()
       };
 
-      await dynamoDBService.put(NOTIFICATIONS_TABLE, updatedNotification);
+      await dynamoDBService.put(NotificationsController.NOTIFICATIONS_TABLE, updatedNotification);
 
       res.json({ success: true });
     } catch (error) {
@@ -74,7 +76,7 @@ export class NotificationsController {
       const userId = req.user!.id;
 
       // Get all items and filter for unread notifications for this user
-      const allItems = await dynamoDBService.scan(NOTIFICATIONS_TABLE);
+      const allItems = await dynamoDBService.scan(NotificationsController.NOTIFICATIONS_TABLE);
       
       // Filter for unread notifications belonging to this user
       const notifications = allItems.filter(item => 
@@ -91,7 +93,7 @@ export class NotificationsController {
           readAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        return dynamoDBService.put(NOTIFICATIONS_TABLE, updatedNotification);
+        return dynamoDBService.put(NotificationsController.NOTIFICATIONS_TABLE, updatedNotification);
       });
 
       await Promise.all(updatePromises);
@@ -127,7 +129,7 @@ export class NotificationsController {
         updatedAt: new Date().toISOString()
       };
 
-      await dynamoDBService.put(NOTIFICATIONS_TABLE, notification);
+      await dynamoDBService.put(NotificationsController.NOTIFICATIONS_TABLE, notification);
       return notification;
     } catch (error) {
       console.error('Create notification error:', error);

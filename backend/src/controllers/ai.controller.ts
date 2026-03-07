@@ -65,6 +65,28 @@ export class AIController {
         location
       } = req.body;
 
+      console.log(`🌾 AI Selling Strategy Request:`);
+      console.log(`   - Crop: ${cropType}`);
+      console.log(`   - Expected Yield: ${expectedYield} ${yieldUnit}`);
+      console.log(`   - Harvest Month: ${harvestMonth}`);
+      console.log(`   - Current Market Price: ${currentMarketPrice || 'Not provided'}`);
+      console.log(`   - Storage Available: ${storageAvailable}`);
+      console.log(`   - Location: ${location || 'Not specified'}`);
+
+      // Fetch current market price if not provided
+      let marketPrice = currentMarketPrice;
+      if (!marketPrice) {
+        try {
+          const { marketPriceService } = await import('../services/market-price.service');
+          const priceData = await marketPriceService.getAveragePrice(cropType, location);
+          marketPrice = priceData.average;
+          console.log(`📊 Fetched market price for ${cropType}: ₹${marketPrice}/${priceData.unit}`);
+        } catch (error) {
+          console.error('Failed to fetch market price:', error);
+          // Will use default in AI service
+        }
+      }
+
       // Try Groq first (free), fallback to Ollama, then Bedrock
       const useGroq = process.env.USE_GROQ === 'true';
       const useOllama = process.env.USE_OLLAMA !== 'false';
@@ -78,7 +100,7 @@ export class AIController {
           expectedYield,
           yieldUnit,
           harvestMonth,
-          currentMarketPrice,
+          currentMarketPrice: marketPrice,
           storageAvailable,
           location
         });
@@ -88,7 +110,7 @@ export class AIController {
           expectedYield,
           yieldUnit,
           harvestMonth,
-          currentMarketPrice,
+          currentMarketPrice: marketPrice,
           storageAvailable,
           location
         });
@@ -99,7 +121,7 @@ export class AIController {
           expectedYield,
           yieldUnit,
           harvestMonth,
-          currentMarketPrice,
+          currentMarketPrice: marketPrice,
           storageAvailable,
           location
         });
