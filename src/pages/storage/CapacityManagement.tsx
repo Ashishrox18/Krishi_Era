@@ -185,3 +185,4 @@ const CapacityManagement = () => {
 }
 
 export default CapacityManagement
+

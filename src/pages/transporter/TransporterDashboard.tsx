@@ -13,7 +13,7 @@ const TransporterDashboard = () => {
     deliveryRate: 0
   })
   const [loading, setLoading] = useState(true)
-  const userName = localStorage.getItem('userName') || 'Transporter'
+  const userName = sessionStorage.getItem('userName') || 'Transporter'
 
   useEffect(() => {
     loadDashboardData()
@@ -278,3 +278,4 @@ const TransporterDashboard = () => {
 }
 
 export default TransporterDashboard
+

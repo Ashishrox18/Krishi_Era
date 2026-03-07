@@ -92,7 +92,7 @@ const ProcurementRequestDetail = () => {
 
   const handleAward = () => {
     // Check if user is authorized to award
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}')
     
     // Only the buyer (owner) can award their procurement request
     if (request?.buyerId !== user.id) {
@@ -149,7 +149,7 @@ const ProcurementRequestDetail = () => {
               <span>Negotiate</span>
             </button>
             {/* Only show award button to request owner */}
-            {request.buyerId === JSON.parse(localStorage.getItem('user') || '{}').id && (
+            {request.buyerId === JSON.parse(sessionStorage.getItem('user') || '{}').id && (
               <button
                 onClick={handleAward}
                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
@@ -412,3 +412,4 @@ const ProcurementRequestDetail = () => {
 }
 
 export default ProcurementRequestDetail
+

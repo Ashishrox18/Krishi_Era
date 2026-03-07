@@ -38,7 +38,7 @@ const ProcurementRequestDetail = () => {
       
       // Check if farmer has already submitted a quote
       const quotesRes = await apiService.getQuotesForRequest(id!)
-      const userStr = localStorage.getItem('user')
+      const userStr = sessionStorage.getItem('user')
       if (userStr) {
         const user = JSON.parse(userStr)
         const existingQuote = quotesRes.quotes?.find((q: any) => q.farmerId === user.id)
@@ -434,3 +434,4 @@ const ProcurementRequestDetail = () => {
 }
 
 export default ProcurementRequestDetail
+

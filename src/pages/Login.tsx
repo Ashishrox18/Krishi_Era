@@ -106,8 +106,8 @@ export default function Login() {
     try {
       if (isLogin) {
         const response = await apiService.login(formData.email, formData.password);
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
+        sessionStorage.setItem('token', response.token);
+        sessionStorage.setItem('user', JSON.stringify(response.user));
         
         // Redirect based on role
         const roleRoutes: Record<string, string> = {
@@ -379,3 +379,4 @@ export default function Login() {
     </div>
   );
 }
+

@@ -311,7 +311,7 @@ const EnhancedNegotiationModal = ({
             <div>
               <NegotiationHistory 
                 history={negotiationHistory}
-                currentUser={JSON.parse(localStorage.getItem('user') || '{}')}
+                currentUser={JSON.parse(sessionStorage.getItem('user') || '{}')}
                 quantityUnit={data?.quantityUnit || 'unit'}
               />
             </div>

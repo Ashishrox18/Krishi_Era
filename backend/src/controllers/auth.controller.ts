@@ -57,11 +57,24 @@ export class AuthController {
       // Send OTP via SMS
       try {
         await snsService.sendOTP(phone, otp);
-        console.log(`OTP sent to ${phone}: ${otp}`); // For development/testing
+        console.log('\n' + '='.repeat(60));
+        console.log('🔐 OTP VERIFICATION CODE');
+        console.log('='.repeat(60));
+        console.log(`📱 Phone: ${phone}`);
+        console.log(`🔢 OTP: ${otp}`);
+        console.log(`⏰ Expires in: 10 minutes`);
+        console.log('='.repeat(60) + '\n');
       } catch (smsError) {
         console.error('SMS sending failed:', smsError);
         // In development, continue even if SMS fails
-        console.log(`Development mode - OTP for ${phone}: ${otp}`);
+        console.log('\n' + '='.repeat(60));
+        console.log('🔐 OTP VERIFICATION CODE (Development Mode)');
+        console.log('='.repeat(60));
+        console.log(`📱 Phone: ${phone}`);
+        console.log(`🔢 OTP: ${otp}`);
+        console.log(`⏰ Expires in: 10 minutes`);
+        console.log('⚠️  SMS sending failed - using console output');
+        console.log('='.repeat(60) + '\n');
       }
 
       res.status(200).json({ 

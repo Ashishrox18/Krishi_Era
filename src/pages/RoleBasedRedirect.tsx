@@ -5,7 +5,7 @@ const RoleBasedRedirect = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user')
+    const userStr = sessionStorage.getItem('user')
     if (!userStr) {
       navigate('/login')
       return
@@ -52,3 +52,4 @@ const RoleBasedRedirect = () => {
 }
 
 export default RoleBasedRedirect
+

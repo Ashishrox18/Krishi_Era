@@ -12,7 +12,7 @@ const BuyerDashboard = () => {
 
   useEffect(() => {
     // Get user from localStorage
-    const userData = localStorage.getItem('user');
+    const userData = sessionStorage.getItem('user');
     if (userData) {
       setUser(JSON.parse(userData));
     }
@@ -223,3 +223,4 @@ const BuyerDashboard = () => {
 }
 
 export default BuyerDashboard
+

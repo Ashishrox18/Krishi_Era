@@ -66,7 +66,7 @@ export default function ProfileUpdate() {
 
   useEffect(() => {
     // Load existing user data
-    const userData = localStorage.getItem('user');
+    const userData = sessionStorage.getItem('user');
     if (userData) {
       const user = JSON.parse(userData);
       
@@ -232,7 +232,7 @@ export default function ProfileUpdate() {
       };
 
       const response = await apiService.updateProfile(profileData);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      sessionStorage.setItem('user', JSON.stringify(response.user));
       
       // Show success message and redirect
       alert('Profile updated successfully!');
@@ -726,3 +726,4 @@ export default function ProfileUpdate() {
     </div>
   );
 }
+

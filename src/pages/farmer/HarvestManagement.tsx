@@ -191,7 +191,7 @@ const HarvestManagement = () => {
     }
 
     // Get user location from localStorage
-    const userData = localStorage.getItem('user');
+    const userData = sessionStorage.getItem('user');
     let location = '';
     if (userData) {
       try {
@@ -619,3 +619,4 @@ const HarvestManagement = () => {
 }
 
 export default HarvestManagement
+

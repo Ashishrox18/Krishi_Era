@@ -283,3 +283,4 @@ const NegotiationModal = ({ isOpen, onClose, onSubmit, data, type }: Negotiation
 }
 
 export default NegotiationModal
+

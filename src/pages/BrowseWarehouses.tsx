@@ -461,3 +461,4 @@ const BrowseWarehouses = () => {
 }
 
 export default BrowseWarehouses
+

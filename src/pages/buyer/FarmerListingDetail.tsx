@@ -38,7 +38,7 @@ const FarmerListingDetail = () => {
       
       // Check if buyer has already made an offer
       const offersRes = await apiService.getOffersForListing(id!)
-      const userStr = localStorage.getItem('user')
+      const userStr = sessionStorage.getItem('user')
       if (userStr) {
         const user = JSON.parse(userStr)
         const existingOffer = offersRes.offers?.find((o: any) => o.buyerId === user.id)
@@ -449,3 +449,4 @@ const FarmerListingDetail = () => {
 }
 
 export default FarmerListingDetail
+

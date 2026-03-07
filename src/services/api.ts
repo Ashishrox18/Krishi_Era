@@ -16,7 +16,7 @@ class ApiService {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -30,7 +30,8 @@ class ApiService {
       (response) => response,
       (error: AxiosError) => {
         if (error.response?.status === 401) {
-          localStorage.removeItem('token');
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
           window.location.href = '/login';
         }
         return Promise.reject(error);
@@ -52,8 +53,8 @@ class ApiService {
   async verifyOTP(data: any) {
     const response = await this.client.post('/auth/verify-otp', data);
     if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      sessionStorage.setItem('token', response.data.token);
+      sessionStorage.setItem('user', JSON.stringify(response.data.user));
     }
     return response.data;
   }
@@ -61,21 +62,21 @@ class ApiService {
   async login(email: string, password: string) {
     const response = await this.client.post('/auth/login', { email, password });
     if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      sessionStorage.setItem('token', response.data.token);
+      sessionStorage.setItem('user', JSON.stringify(response.data.user));
     }
     return response.data;
   }
 
   async logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
   }
 
   async updateProfile(data: any) {
     const response = await this.client.put('/auth/profile', data);
     if (response.data.user) {
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      sessionStorage.setItem('user', JSON.stringify(response.data.user));
     }
     return response.data;
   }
@@ -161,8 +162,15 @@ class ApiService {
     return response.data;
   }
 
-  async getWeather() {
-    const response = await this.client.get('/farmer/weather');
+  async getWeather(latitude?: number, longitude?: number, city?: string) {
+    const params: any = {};
+    if (latitude && longitude) {
+      params.latitude = latitude;
+      params.longitude = longitude;
+    } else if (city) {
+      params.city = city;
+    }
+    const response = await this.client.get('/farmer/weather', { params });
     return response.data;
   }
 

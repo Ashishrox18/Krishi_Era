@@ -286,28 +286,57 @@ export class FarmerController {
 
   async getWeather(req: AuthRequest, res: Response) {
     try {
-      // Mock weather data - integrate with actual weather API
-      const weatherData = {
+      const { latitude, longitude, city } = req.query;
+
+      let weatherData;
+
+      if (latitude && longitude) {
+        // Use provided coordinates
+        const { weatherService } = await import('../services/weather.service');
+        weatherData = await weatherService.getWeather(
+          parseFloat(latitude as string),
+          parseFloat(longitude as string)
+        );
+      } else if (city) {
+        // Use city name
+        const { weatherService } = await import('../services/weather.service');
+        weatherData = await weatherService.getWeatherByCity(city as string);
+      } else {
+        // Use default location (New Delhi, India)
+        const { weatherService } = await import('../services/weather.service');
+        weatherData = await weatherService.getDefaultWeather();
+      }
+
+      res.json(weatherData);
+    } catch (error) {
+      console.error('Weather fetch error:', error);
+      
+      // Fallback to mock data if API fails
+      const fallbackData = {
         current: {
           temperature: 28,
           humidity: 65,
           windSpeed: 12,
           conditions: 'Partly Cloudy',
+          weatherCode: 2,
         },
         forecast: [
-          { day: 'Mon', temp: 28, rainfall: 0 },
-          { day: 'Tue', temp: 30, rainfall: 5 },
-          { day: 'Wed', temp: 29, rainfall: 12 },
-          { day: 'Thu', temp: 27, rainfall: 8 },
-          { day: 'Fri', temp: 28, rainfall: 0 },
-          { day: 'Sat', temp: 31, rainfall: 0 },
-          { day: 'Sun', temp: 32, rainfall: 0 },
+          { day: 'Mon', temp: 28, rainfall: 0, weatherCode: 0 },
+          { day: 'Tue', temp: 30, rainfall: 5, weatherCode: 61 },
+          { day: 'Wed', temp: 29, rainfall: 12, weatherCode: 63 },
+          { day: 'Thu', temp: 27, rainfall: 8, weatherCode: 61 },
+          { day: 'Fri', temp: 28, rainfall: 0, weatherCode: 1 },
+          { day: 'Sat', temp: 31, rainfall: 0, weatherCode: 0 },
+          { day: 'Sun', temp: 32, rainfall: 0, weatherCode: 0 },
         ],
+        location: {
+          latitude: 28.6139,
+          longitude: 77.2090,
+          city: 'Default Location',
+        },
       };
-
-      res.json(weatherData);
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch weather data' });
+      
+      res.json(fallbackData);
     }
   }
 

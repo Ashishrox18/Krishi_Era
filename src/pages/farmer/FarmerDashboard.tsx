@@ -19,7 +19,7 @@ const FarmerDashboard = () => {
 
   useEffect(() => {
     // Get user from localStorage
-    const userData = localStorage.getItem('user');
+    const userData = sessionStorage.getItem('user');
     if (userData) {
       setUser(JSON.parse(userData));
     }
@@ -54,11 +54,52 @@ const FarmerDashboard = () => {
 
   const loadWeather = async () => {
     try {
-      const response = await apiService.getWeather();
-      setWeather(response);
+      // Try to get user's location from browser
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            // Success - use user's actual location
+            const { latitude, longitude } = position.coords;
+            console.log('📍 Using user location:', latitude, longitude);
+            try {
+              const response = await apiService.getWeather(latitude, longitude);
+              setWeather(response);
+            } catch (error) {
+              console.error('Failed to load weather with location:', error);
+              // Fallback to default location
+              const response = await apiService.getWeather();
+              setWeather(response);
+            } finally {
+              setLoadingWeather(false);
+            }
+          },
+          async (error) => {
+            // User denied location or error occurred - use default location
+            console.log('📍 Location access denied or unavailable, using default location');
+            console.log('Geolocation error:', error.message);
+            try {
+              const response = await apiService.getWeather();
+              setWeather(response);
+            } catch (error) {
+              console.error('Failed to load weather:', error);
+            } finally {
+              setLoadingWeather(false);
+            }
+          },
+          {
+            timeout: 5000, // 5 second timeout
+            enableHighAccuracy: false, // Faster, less battery
+          }
+        );
+      } else {
+        // Browser doesn't support geolocation - use default
+        console.log('📍 Geolocation not supported, using default location');
+        const response = await apiService.getWeather();
+        setWeather(response);
+        setLoadingWeather(false);
+      }
     } catch (error) {
       console.error('Failed to load weather:', error);
-    } finally {
       setLoadingWeather(false);
     }
   };
@@ -273,11 +314,19 @@ const FarmerDashboard = () => {
         <div className="space-y-6">
           {/* Weather Widget */}
           <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Weather Forecast</h2>
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Weather Forecast</h2>
+              {weather?.location && (
+                <div className="flex items-center text-xs text-gray-500">
+                  <MapPin className="h-3 w-3 mr-1" />
+                  <span>{weather.location.city || 'Your Location'}</span>
+                </div>
+              )}
+            </div>
             {loadingWeather ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2 text-sm">Loading weather...</p>
+                <p className="text-gray-600 mt-2 text-sm">Detecting location...</p>
               </div>
             ) : (
               <>
@@ -412,3 +461,4 @@ const FarmerDashboard = () => {
 }
 
 export default FarmerDashboard
+

@@ -73,5 +73,17 @@
     },
     "createdAt": "2026-03-05T18:57:00.673Z",
     "updatedAt": "2026-03-05T18:57:00.673Z"
+  },
+  {
+    "id": "e5c2bce1-6520-4475-9fa6-1d76990d7c8e",
+    "email": "test11@example.com",
+    "password": "$2a$10$yZlxw1i0gq4iUpGOZE7to.a4Dm20HoX.3bDHj9ttos/43vUWYdmme",
+    "name": "Jampani",
+    "role": "transporter",
+    "phone": "7348968996",
+    "phoneVerified": true,
+    "profile": {},
+    "createdAt": "2026-03-07T08:52:23.964Z",
+    "updatedAt": "2026-03-07T08:52:23.964Z"
   }
 ]

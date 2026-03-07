@@ -629,3 +629,4 @@ const BrowseVehicles = () => {
 }
 
 export default BrowseVehicles
+

@@ -36,7 +36,7 @@ const Award = () => {
   }
 
   const generateContract = () => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}')
     const today = new Date().toLocaleDateString()
     const contractId = `CONTRACT-${Date.now()}`
 
@@ -357,3 +357,4 @@ BUYER SIGNATURE:  _____________________  DATE: __________
 }
 
 export default Award
+

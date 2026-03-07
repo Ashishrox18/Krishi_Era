@@ -135,3 +135,4 @@ const QualityInspection = () => {
 }
 
 export default QualityInspection
+

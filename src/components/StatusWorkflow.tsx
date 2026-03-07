@@ -108,3 +108,4 @@ const StatusWorkflow = ({ currentStatus, type }: StatusWorkflowProps) => {
 }
 
 export default StatusWorkflow
+

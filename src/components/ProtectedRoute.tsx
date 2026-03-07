@@ -6,7 +6,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const userStr = localStorage.getItem('user');
+  const userStr = sessionStorage.getItem('user');
   
   if (!userStr) {
     return <Navigate to="/login" replace />;
@@ -28,3 +28,4 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
 
   return <>{children}</>;
 }
+

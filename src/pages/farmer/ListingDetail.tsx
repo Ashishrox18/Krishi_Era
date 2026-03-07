@@ -92,7 +92,7 @@ const ListingDetail = () => {
 
   const handleAward = () => {
     // Check if user is authorized to award
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}')
     
     // Only the farmer (owner) can award their listing
     if (listing?.farmerId !== user.id) {
@@ -149,7 +149,7 @@ const ListingDetail = () => {
               <span>Negotiate</span>
             </button>
             {/* Only show award button to listing owner */}
-            {listing.farmerId === JSON.parse(localStorage.getItem('user') || '{}').id && (
+            {listing.farmerId === JSON.parse(sessionStorage.getItem('user') || '{}').id && (
               <button
                 onClick={handleAward}
                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
@@ -434,3 +434,4 @@ const ListingDetail = () => {
 }
 
 export default ListingDetail
+
