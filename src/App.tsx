@@ -31,8 +31,10 @@ import ListWarehouse from './pages/storage/ListWarehouse'
 import BrowseWarehouses from './pages/BrowseWarehouses'
 import BrowseVehicles from './pages/BrowseVehicles'
 import MyVehicleBookings from './pages/MyVehicleBookings'
+import MyStorageBookings from './pages/MyStorageBookings'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import SystemMonitoring from './pages/admin/SystemMonitoring'
+import Invoices from './pages/shared/Invoices'
 
 function App() {
   return (
@@ -190,6 +192,19 @@ function App() {
           <Route path="my-vehicle-bookings" element={
             <ProtectedRoute allowedRoles={['farmer', 'buyer', 'storage', 'admin']}>
               <MyVehicleBookings />
+            </ProtectedRoute>
+          } />
+
+          <Route path="my-storage-bookings" element={
+            <ProtectedRoute allowedRoles={['farmer', 'buyer', 'admin']}>
+              <MyStorageBookings />
+            </ProtectedRoute>
+          } />
+
+          {/* Invoices - accessible by all user types */}
+          <Route path="invoices" element={
+            <ProtectedRoute allowedRoles={['farmer', 'buyer', 'transporter', 'storage', 'admin']}>
+              <Invoices />
             </ProtectedRoute>
           } />
           

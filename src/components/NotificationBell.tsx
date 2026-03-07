@@ -20,19 +20,23 @@ const NotificationBell = () => {
 
   useEffect(() => {
     loadNotifications()
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadNotifications, 30000)
+    // Poll for new notifications every 10 seconds (more frequent for testing)
+    const interval = setInterval(loadNotifications, 10000)
     return () => clearInterval(interval)
   }, [])
 
   const loadNotifications = async () => {
     try {
+      console.log('🔔 Loading notifications...');
       const response = await apiService.getNotifications()
+      console.log('📊 Notifications loaded:', response.notifications?.length || 0);
       setNotifications(response.notifications || [])
     } catch (error: any) {
       // Silently fail if notifications endpoint doesn't exist yet (404)
       if (error?.response?.status !== 404) {
         console.error('Failed to load notifications:', error)
+      } else {
+        console.log('📭 Notifications endpoint not available (404)');
       }
     }
   }

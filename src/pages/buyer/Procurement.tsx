@@ -17,7 +17,9 @@ const Procurement = () => {
 
   const loadListings = async () => {
     try {
+      console.log('Loading buyer procurement page...')
       const response = await apiService.getAvailableProduce()
+      console.log('Available produce response:', response)
       setListings(response.listings || [])
     } catch (error) {
       console.error('Failed to load listings:', error)

@@ -80,11 +80,6 @@ class ApiService {
     return response.data;
   }
 
-  async getAISellingStrategy(data: any) {
-    const response = await this.client.post('/ai/selling-strategy', data);
-    return response.data;
-  }
-
   async createPurchaseRequest(data: any) {
     const response = await this.client.post('/farmer/purchase-requests', data);
     return response.data;
@@ -505,6 +500,22 @@ class ApiService {
     return response.data;
   }
 
+  // Invoice APIs
+  async getInvoices() {
+    const response = await this.client.get('/invoices');
+    return response.data;
+  }
+
+  async getInvoice(invoiceId: string) {
+    const response = await this.client.get(`/invoices/${invoiceId}`);
+    return response.data;
+  }
+
+  async updateInvoiceStatus(invoiceId: string, data: any) {
+    const response = await this.client.put(`/invoices/${invoiceId}/status`, data);
+    return response.data;
+  }
+
   // Notification APIs
   async getNotifications() {
     const response = await this.client.get('/notifications');
@@ -517,7 +528,7 @@ class ApiService {
   }
 
   async markAllNotificationsAsRead() {
-    const response = await this.client.put('/notifications/read-all');
+    const response = await this.client.put('/notifications/mark-all-read');
     return response.data;
   }
 

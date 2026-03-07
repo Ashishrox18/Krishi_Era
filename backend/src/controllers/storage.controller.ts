@@ -89,65 +89,87 @@ export class StorageController {
   }
 
   async createBooking(req: AuthRequest, res: Response) {
-    try {
-      const userId = req.user!.id;
-      const userRole = req.user!.role;
-      const { facilityId, product, quantity, duration, startDate } = req.body;
+      try {
+        const userId = req.user!.id;
+        const userRole = req.user!.role;
+        const { facilityId, product, quantity, duration, startDate } = req.body;
 
-      // Get the facility to check availability
-      const facility = await dynamoDBService.get(
-        process.env.DYNAMODB_STORAGE_TABLE!,
-        { id: facilityId }
-      );
+        // If no facilityId provided, get the first available facility
+        let targetFacilityId = facilityId;
 
-      if (!facility) {
-        return res.status(404).json({ error: 'Facility not found' });
-      }
+        if (!targetFacilityId) {
+          const facilities = await dynamoDBService.scan(process.env.DYNAMODB_STORAGE_TABLE!);
+          const availableFacilities = facilities.filter((item: any) => 
+            item.capacity && item.providerId && !item.entityType &&
+            (item.capacity - (item.occupied || 0)) >= (quantity || 100)
+          );
 
-      const availableCapacity = facility.capacity - (facility.occupied || 0);
-      if (quantity > availableCapacity) {
-        return res.status(400).json({ 
-          error: 'Insufficient capacity',
-          available: availableCapacity,
-          requested: quantity
-        });
-      }
+          if (availableFacilities.length === 0) {
+            return res.status(404).json({ error: 'No available facilities found' });
+          }
 
-      const booking = {
-        id: uuidv4(),
-        facilityId,
-        farmerId: userRole === 'farmer' ? userId : undefined,
-        buyerId: userRole === 'buyer' ? userId : undefined,
-        product,
-        quantity,
-        duration,
-        startDate,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-      };
-
-      await dynamoDBService.put(process.env.DYNAMODB_STORAGE_TABLE!, booking);
-
-      // Update facility occupied space
-      const newOccupied = (facility.occupied || 0) + quantity;
-      const newUtilization = (newOccupied / facility.capacity) * 100;
-      
-      await dynamoDBService.update(
-        process.env.DYNAMODB_STORAGE_TABLE!,
-        { id: facilityId },
-        'SET occupied = :occupied, utilization = :utilization',
-        {
-          ':occupied': newOccupied,
-          ':utilization': newUtilization,
+          targetFacilityId = availableFacilities[0].id;
         }
-      );
 
-      res.status(201).json({ booking });
-    } catch (error) {
-      console.error('Create booking error:', error);
-      res.status(500).json({ error: 'Failed to create booking' });
+        // Get the facility to check availability
+        const facility = await dynamoDBService.get(
+          process.env.DYNAMODB_STORAGE_TABLE!,
+          { id: targetFacilityId }
+        );
+
+        if (!facility) {
+          return res.status(404).json({ error: 'Facility not found' });
+        }
+
+        const availableCapacity = facility.capacity - (facility.occupied || 0);
+        const requestedQuantity = quantity || 100;
+
+        if (requestedQuantity > availableCapacity) {
+          return res.status(400).json({ 
+            error: 'Insufficient capacity',
+            available: availableCapacity,
+            requested: requestedQuantity
+          });
+        }
+
+        const booking = {
+          id: uuidv4(),
+          facilityId: targetFacilityId,
+          facilityName: facility.name,
+          farmerId: userRole === 'farmer' ? userId : undefined,
+          buyerId: userRole === 'buyer' ? userId : undefined,
+          product: product || 'General Produce',
+          quantity: requestedQuantity,
+          duration: duration || 30,
+          startDate: startDate || new Date().toISOString(),
+          status: 'active',
+          totalCost: requestedQuantity * (facility.pricePerQuintal || 20) * (duration || 30),
+          createdAt: new Date().toISOString(),
+        };
+
+        await dynamoDBService.put(process.env.DYNAMODB_STORAGE_TABLE!, booking);
+
+        // Update facility occupied space
+        const newOccupied = (facility.occupied || 0) + requestedQuantity;
+        const newUtilization = (newOccupied / facility.capacity) * 100;
+
+        await dynamoDBService.update(
+          process.env.DYNAMODB_STORAGE_TABLE!,
+          { id: targetFacilityId },
+          'SET occupied = :occupied, utilization = :utilization',
+          {
+            ':occupied': newOccupied,
+            ':utilization': newUtilization,
+          }
+        );
+
+        res.status(201).json({ booking });
+      } catch (error) {
+        console.error('Create booking error:', error);
+        res.status(500).json({ error: 'Failed to create booking' });
+      }
     }
-  }
+
 
   async updateBooking(req: AuthRequest, res: Response) {
     try {
@@ -236,9 +258,49 @@ export class StorageController {
       );
 
       // Filter to only include facilities (not bookings or other entities)
-      const facilities = allFacilities.filter((item: any) => 
+      let facilities = allFacilities.filter((item: any) => 
         item.capacity && item.providerId && !item.entityType
       );
+
+      // If no facilities exist, create some sample data
+      if (facilities.length === 0) {
+        const sampleFacilities = [
+          {
+            id: uuidv4(),
+            providerId: 'sample-provider-1',
+            name: 'Punjab Cold Storage',
+            location: 'Ludhiana, Punjab',
+            capacity: 5000,
+            occupied: 2000,
+            utilization: 40,
+            pricePerQuintal: 25,
+            facilityType: 'Cold Storage',
+            temperature: 4,
+            features: ['Temperature Control', 'Pest Control', 'Security'],
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: uuidv4(),
+            providerId: 'sample-provider-2',
+            name: 'Haryana Grain Warehouse',
+            location: 'Karnal, Haryana',
+            capacity: 8000,
+            occupied: 3000,
+            utilization: 37.5,
+            pricePerQuintal: 20,
+            facilityType: 'Grain Storage',
+            features: ['Moisture Control', 'Quality Testing', 'Loading Dock'],
+            createdAt: new Date().toISOString()
+          }
+        ];
+
+        // Store sample facilities
+        for (const facility of sampleFacilities) {
+          await dynamoDBService.put(process.env.DYNAMODB_STORAGE_TABLE!, facility);
+        }
+
+        facilities = sampleFacilities;
+      }
 
       res.json({ facilities });
     } catch (error) {
@@ -251,13 +313,17 @@ export class StorageController {
     try {
       const userId = req.user!.id;
 
-      // Get bookings where the user is the farmer/buyer (not the provider)
-      const bookings = await dynamoDBService.scan(
-        process.env.DYNAMODB_STORAGE_TABLE!,
-        'farmerId = :userId OR buyerId = :userId',
-        { ':userId': userId }
+      // Get all bookings from storage table
+      const allBookings = await dynamoDBService.scan(
+        process.env.DYNAMODB_STORAGE_TABLE!
       );
 
+      // Filter bookings where the user is the farmer/buyer (not the provider)
+      const bookings = allBookings.filter((booking: any) => 
+        booking.farmerId === userId || booking.buyerId === userId
+      );
+
+      console.log(`Found ${bookings.length} bookings for user ${userId}`);
       res.json({ bookings });
     } catch (error) {
       console.error('Get my bookings error:', error);

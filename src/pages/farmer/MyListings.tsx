@@ -1,4 +1,4 @@
-import { Package, MapPin, Calendar, Edit2, Trash2, Save, X, Eye } from 'lucide-react'
+import { Package, MapPin, Calendar, Edit2, Trash2, Save, X, Eye, CheckCircle, TrendingUp, DollarSign } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { apiService } from '../../services/api'
@@ -8,6 +8,7 @@ const MyListings = () => {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
+  const [filter, setFilter] = useState<'all' | 'active' | 'finalized' | 'cancelled'>('all')
 
   useEffect(() => {
     loadListings()
@@ -16,6 +17,7 @@ const MyListings = () => {
   const loadListings = async () => {
     try {
       const response = await apiService.getMyPurchaseRequests()
+      console.log('Farmer listings response:', response)
       setListings(response.requests || [])
     } catch (error) {
       console.error('Failed to load listings:', error)
@@ -69,27 +71,148 @@ const MyListings = () => {
     )
   }
 
+  // Filter listings based on status
+  const filteredListings = listings.filter(listing => {
+    if (filter === 'all') return true;
+    if (filter === 'active') return listing.status === 'open' || listing.status === 'negotiating';
+    if (filter === 'finalized') return listing.status === 'accepted' || listing.status === 'completed' || listing.status === 'awarded';
+    if (filter === 'cancelled') return listing.status === 'cancelled' || listing.status === 'rejected';
+    return true;
+  });
+
+  // Calculate stats
+  const stats = {
+    total: listings.length,
+    active: listings.filter(l => l.status === 'open' || l.status === 'negotiating').length,
+    finalized: listings.filter(l => l.status === 'accepted' || l.status === 'completed' || l.status === 'awarded').length,
+    totalRevenue: listings
+      .filter(l => l.status === 'accepted' || l.status === 'completed' || l.status === 'awarded')
+      .reduce((sum, l) => sum + ((l.finalPrice || l.currentBestOffer || l.minimumPrice) * l.quantity), 0)
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">My Listings</h1>
-        <p className="text-gray-600 mt-1">Manage your produce listings</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">My Sales</h1>
+          <p className="text-gray-600 mt-1">Manage your produce listings and view sales history</p>
+        </div>
+        <Link to="/farmer/harvest" className="btn-primary">
+          List New Produce
+        </Link>
       </div>
 
-      {listings.length === 0 ? (
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Total Listings</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+            </div>
+            <Package className="h-8 w-8 text-gray-600" />
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Active</p>
+              <p className="text-2xl font-bold text-blue-600">{stats.active}</p>
+            </div>
+            <TrendingUp className="h-8 w-8 text-blue-600" />
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Finalized Sales</p>
+              <p className="text-2xl font-bold text-green-600">{stats.finalized}</p>
+            </div>
+            <CheckCircle className="h-8 w-8 text-green-600" />
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Total Revenue</p>
+              <p className="text-2xl font-bold text-green-600">₹{(stats.totalRevenue / 100000).toFixed(1)}L</p>
+            </div>
+            <DollarSign className="h-8 w-8 text-green-600" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex space-x-2 border-b border-gray-200">
+        <button
+          onClick={() => setFilter('all')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
+            filter === 'all'
+              ? 'border-green-600 text-green-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          All ({stats.total})
+        </button>
+        <button
+          onClick={() => setFilter('active')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
+            filter === 'active'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Active ({stats.active})
+        </button>
+        <button
+          onClick={() => setFilter('finalized')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
+            filter === 'finalized'
+              ? 'border-green-600 text-green-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Finalized ({stats.finalized})
+        </button>
+        <button
+          onClick={() => setFilter('cancelled')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
+            filter === 'cancelled'
+              ? 'border-red-600 text-red-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Cancelled
+        </button>
+      </div>
+
+      {filteredListings.length === 0 ? (
         <div className="card text-center py-12">
           <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Listings Yet</h3>
-          <p className="text-gray-600 mb-6">Start by listing your produce for sale</p>
-          <a href="/farmer/list-produce" className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
-            List Produce
-          </a>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {filter === 'all' ? 'No Listings Yet' : `No ${filter} listings`}
+          </h3>
+          <p className="text-gray-600 mb-6">
+            {filter === 'all' 
+              ? 'Start by listing your produce for sale'
+              : `You don't have any ${filter} listings at the moment`
+            }
+          </p>
+          {filter === 'all' && (
+            <Link to="/farmer/harvest" className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+              List Produce
+            </Link>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
-          {listings.map((listing) => (
-            <div key={listing.id} className="card">
-              {editingId === listing.id ? (
+          {filteredListings.map((listing) => {
+            const isFinalized = listing.status === 'accepted' || listing.status === 'completed' || listing.status === 'awarded';
+            const finalPrice = listing.finalPrice || listing.currentBestOffer || listing.minimumPrice;
+            
+            return (
+              <div key={listing.id} className="card">
+                {editingId === listing.id ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Crop Type</label><input type="text" value={editForm.cropType} onChange={(e) => setEditForm({ ...editForm, cropType: e.target.value })} className="input" /></div>
@@ -108,16 +231,69 @@ const MyListings = () => {
               ) : (
                 <div>
                   <div className="flex items-start justify-between mb-4">
-                    <div><h3 className="text-xl font-semibold text-gray-900">{listing.cropType} {listing.variety && `(${listing.variety})`}</h3><p className="text-sm text-gray-600">Listed {new Date(listing.createdAt).toLocaleDateString()}</p></div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900">{listing.cropType} {listing.variety && `(${listing.variety})`}</h3>
+                      <p className="text-sm text-gray-600">Listed {new Date(listing.createdAt).toLocaleDateString()}</p>
+                      {isFinalized && listing.awardedAt && (
+                        <p className="text-sm text-green-600 font-medium mt-1">
+                          ✓ Sold on {new Date(listing.awardedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
                     <div className="flex items-center space-x-2">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${listing.status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{listing.status}</span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        listing.status === 'open' ? 'bg-blue-100 text-blue-800' :
+                        listing.status === 'negotiating' ? 'bg-yellow-100 text-yellow-800' :
+                        isFinalized ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {listing.status === 'awarded' ? 'Sold' : listing.status}
+                      </span>
                       <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">Grade {listing.qualityGrade}</span>
                     </div>
                   </div>
+
+                  {/* Finalized Sale Highlight */}
+                  {isFinalized && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <CheckCircle className="h-6 w-6 text-green-600" />
+                          <div>
+                            <p className="font-semibold text-green-900">Sale Finalized</p>
+                            <p className="text-sm text-green-700">
+                              Buyer: {listing.awardedBuyerName || listing.buyerName || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-green-700">Final Price</p>
+                          <p className="text-2xl font-bold text-green-600">₹{finalPrice}/{listing.quantityUnit}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-green-200">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">Total Revenue:</span>
+                          <span className="font-bold text-green-900">₹{(finalPrice * listing.quantity).toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div><p className="text-xs text-gray-600">Quantity</p><p className="font-semibold text-gray-900">{listing.quantity} {listing.quantityUnit}</p></div>
-                    <div><p className="text-xs text-gray-600">Minimum Price</p><p className="font-semibold text-green-600">₹{listing.minimumPrice}/{listing.quantityUnit}</p></div>
-                    <div><p className="text-xs text-gray-600">Total Value</p><p className="font-semibold text-gray-900">₹{(listing.quantity * listing.minimumPrice).toLocaleString()}</p></div>
+                    <div>
+                      <p className="text-xs text-gray-600">{isFinalized ? 'Final Price' : 'Minimum Price'}</p>
+                      <p className={`font-semibold ${isFinalized ? 'text-green-600' : 'text-gray-900'}`}>
+                        ₹{finalPrice}/{listing.quantityUnit}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600">Total Value</p>
+                      <p className={`font-semibold ${isFinalized ? 'text-green-600' : 'text-gray-900'}`}>
+                        ₹{(listing.quantity * finalPrice).toLocaleString()}
+                      </p>
+                    </div>
                     <div><p className="text-xs text-gray-600">Quotes</p><p className="font-semibold text-blue-600">{listing.quotesCount || 0}</p></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -125,16 +301,20 @@ const MyListings = () => {
                     <div className="flex items-center space-x-2"><Calendar className="h-4 w-4 text-gray-400" /><span className="text-sm text-gray-700">Available from {new Date(listing.availableFrom).toLocaleDateString()}</span></div>
                   </div>
                   {listing.description && <p className="text-sm text-gray-600 mb-4">{listing.description}</p>}
-                  {listing.currentBestOffer > 0 && <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4"><p className="text-sm font-medium text-blue-900">Best Offer: ₹{listing.currentBestOffer}/{listing.quantityUnit}</p></div>}
+                  {!isFinalized && listing.currentBestOffer > 0 && <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4"><p className="text-sm font-medium text-blue-900">Best Offer: ₹{listing.currentBestOffer}/{listing.quantityUnit}</p></div>}
                   <div className="flex space-x-3">
                     <Link to={`/farmer/listing/${listing.id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"><Eye className="h-4 w-4 mr-2" />View Details</Link>
-                    <button onClick={() => handleEdit(listing)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"><Edit2 className="h-4 w-4 mr-2" />Edit</button>
-                    <button onClick={() => handleDelete(listing.id)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"><Trash2 className="h-4 w-4 mr-2" />Delete</button>
+                    {!isFinalized && (
+                      <>
+                        <button onClick={() => handleEdit(listing)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"><Edit2 className="h-4 w-4 mr-2" />Edit</button>
+                        <button onClick={() => handleDelete(listing.id)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"><Trash2 className="h-4 w-4 mr-2" />Delete</button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>

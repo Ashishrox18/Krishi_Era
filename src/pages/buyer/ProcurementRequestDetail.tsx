@@ -91,6 +91,21 @@ const ProcurementRequestDetail = () => {
   }
 
   const handleAward = () => {
+    // Check if user is authorized to award
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    
+    // Only the buyer (owner) can award their procurement request
+    if (request?.buyerId !== user.id) {
+      alert('Only the request owner can award this procurement request')
+      return
+    }
+
+    // Check if already awarded
+    if (request?.status === 'awarded') {
+      alert('This request has already been awarded')
+      return
+    }
+
     navigate(`/award/procurement/${id}`)
   }
 
@@ -133,13 +148,16 @@ const ProcurementRequestDetail = () => {
               <MessageSquare className="h-4 w-4" />
               <span>Negotiate</span>
             </button>
-            <button
-              onClick={handleAward}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
-              <Award className="h-4 w-4" />
-              <span>Award</span>
-            </button>
+            {/* Only show award button to request owner */}
+            {request.buyerId === JSON.parse(localStorage.getItem('user') || '{}').id && (
+              <button
+                onClick={handleAward}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+              >
+                <Award className="h-4 w-4" />
+                <span>Award</span>
+              </button>
+            )}
           </div>
         )}
       </div>

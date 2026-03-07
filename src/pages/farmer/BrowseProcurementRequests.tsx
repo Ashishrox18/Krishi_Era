@@ -37,7 +37,10 @@ const BrowseProcurementRequests = () => {
     const matchesLocation = !selectedLocation || 
       request.deliveryLocation.toLowerCase().includes(selectedLocation.toLowerCase())
     
-    return matchesSearch && matchesCrop && matchesQuality && matchesLocation && request.status === 'open'
+    // Include all active statuses: open, released, in_progress, negotiating
+    const isActive = ['open', 'released', 'in_progress', 'negotiating'].includes(request.status)
+    
+    return matchesSearch && matchesCrop && matchesQuality && matchesLocation && isActive
   })
 
   const uniqueCrops = Array.from(new Set(requests.map(r => r.cropType)))
