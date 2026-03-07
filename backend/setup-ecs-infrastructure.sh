@@ -199,12 +199,12 @@ if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
 fi
 echo -e "${GREEN}✅ Using VPC: ${VPC_ID}${NC}"
 
-# Get subnets
+# Get subnets (pick first 2 from different AZs)
 SUBNET_IDS=$(aws ec2 describe-subnets \
   --filters "Name=vpc-id,Values=${VPC_ID}" \
-  --query 'Subnets[*].SubnetId' \
+  --query 'Subnets[0:2].SubnetId' \
   --output text \
-  --region ${REGION})
+  --region ${REGION} | tr '\t' ' ')
 echo -e "${GREEN}✅ Found subnets${NC}"
 
 # Create security group for ALB
