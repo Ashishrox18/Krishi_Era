@@ -7,7 +7,7 @@ import path from 'path';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 
-// Route imports
+// Route imports 
 import authRoutes from './routes/auth.routes';
 import farmerRoutes from './routes/farmer.routes';
 import buyerRoutes from './routes/buyer.routes';
