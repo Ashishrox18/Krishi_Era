@@ -313,13 +313,17 @@ export class StorageController {
     try {
       const userId = req.user!.id;
 
-      // Get bookings where the user is the farmer/buyer (not the provider)
-      const bookings = await dynamoDBService.scan(
-        process.env.DYNAMODB_STORAGE_TABLE!,
-        'farmerId = :userId OR buyerId = :userId',
-        { ':userId': userId }
+      // Get all bookings from storage table
+      const allBookings = await dynamoDBService.scan(
+        process.env.DYNAMODB_STORAGE_TABLE!
       );
 
+      // Filter bookings where the user is the farmer/buyer (not the provider)
+      const bookings = allBookings.filter((booking: any) => 
+        booking.farmerId === userId || booking.buyerId === userId
+      );
+
+      console.log(`Found ${bookings.length} bookings for user ${userId}`);
       res.json({ bookings });
     } catch (error) {
       console.error('Get my bookings error:', error);

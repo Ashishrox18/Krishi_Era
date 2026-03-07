@@ -1,14 +1,5 @@
 [
   {
-    "id": "a9f597dc-1fb5-49e0-a0aa-4e8d4b3e4cda",
-    "farmerId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
-    "cropId": "a80a0189-440f-4f77-9242-65f681b93375",
-    "quantity": 100,
-    "status": "in_progress",
-    "createdAt": "2026-03-05T18:49:18.402Z",
-    "updatedAt": "2026-03-05T19:20:49.297Z"
-  },
-  {
     "id": "d35b047b-e8ea-45c3-ae63-b137e7e8b3ba",
     "farmerId": "089c4394-9a29-498f-9dcc-13fe89bc9d32",
     "cropId": "1804b2bf-d1e0-495e-990f-86b4048bdc53",

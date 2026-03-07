@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { 
   Sprout, Calendar, TrendingUp, 
-  Cloud, Droplets, ThermometerSun, Wind, Package, MapPin, DollarSign 
+  Cloud, Droplets, ThermometerSun, Wind, Package, MapPin, DollarSign,
+  Warehouse, Truck, FileText, ShoppingCart, Lightbulb
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { apiService } from '../../services/api'
@@ -182,27 +183,89 @@ const FarmerDashboard = () => {
             )}
           </div>
 
-          {/* AI Recommendations - Hide static recommendations for now */}
+          {/* Recent Listings Section */}
           <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Link
-                to="/farmer/list-produce"
-                className="p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg hover:shadow-md transition text-center"
-              >
-                <Package className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <p className="font-semibold text-gray-900">List Produce</p>
-                <p className="text-sm text-gray-600">Sell your harvest</p>
-              </Link>
-              <Link
-                to="/farmer/browse-procurement-requests"
-                className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg hover:shadow-md transition text-center"
-              >
-                <Package className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                <p className="font-semibold text-gray-900">Browse Requests</p>
-                <p className="text-sm text-gray-600">View buyer needs</p>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Recent Listings</h2>
+              <Link to="/farmer/my-listings" className="text-green-600 hover:text-green-700 text-sm font-medium">
+                View All →
               </Link>
             </div>
+
+            {loadingListings ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2 text-sm">Loading listings...</p>
+              </div>
+            ) : recentListings.length === 0 ? (
+              <div className="text-center py-8">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600 mb-3">No listings yet</p>
+                <Link
+                  to="/farmer/harvest"
+                  className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                >
+                  Create Your First Listing
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentListings.map((listing) => (
+                  <div key={listing.id} className="border border-gray-200 rounded-lg p-4 hover:border-green-300 transition">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h3 className="font-semibold text-gray-900">
+                            {listing.cropType} {listing.variety && `(${listing.variety})`}
+                          </h3>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            listing.status === 'open' ? 'bg-green-100 text-green-700' :
+                            listing.status === 'negotiating' ? 'bg-yellow-100 text-yellow-700' :
+                            listing.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {listing.status}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-3 text-sm text-gray-600">
+                          <div className="flex items-center">
+                            <Package className="h-4 w-4 mr-1.5" />
+                            <span>{listing.quantity} {listing.quantityUnit}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <DollarSign className="h-4 w-4 mr-1.5" />
+                            <span>₹{listing.minimumPrice}/{listing.quantityUnit}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <MapPin className="h-4 w-4 mr-1.5" />
+                            <span className="truncate">{listing.pickupLocation}</span>
+                          </div>
+                        </div>
+
+                        {listing.quotesCount > 0 && (
+                          <div className="mt-2 text-sm">
+                            <span className="text-green-600 font-medium">{listing.quotesCount} quotes received</span>
+                            {listing.currentBestOffer > 0 && (
+                              <span className="text-gray-600 ml-2">
+                                • Best: ₹{listing.currentBestOffer}/{listing.quantityUnit}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <Link
+                        to="/farmer/my-listings"
+                        className="ml-4 px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Manage
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -267,122 +330,82 @@ const FarmerDashboard = () => {
           {/* Quick Actions */}
           <div className="card">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-            <div className="space-y-2">
-              <Link to="/farmer/crop-planning" className="block w-full btn-primary text-center">
-                Plan New Crop
-              </Link>
-              <Link to="/farmer/selling-strategy" className="block w-full btn-primary text-center bg-orange-600 hover:bg-orange-700">
-                AI Selling Strategy
-              </Link>
-              <Link to="/farmer/harvest" className="block w-full btn-secondary text-center">
-                Manage Harvest
-              </Link>
-              <Link to="/farmer/list-produce" className="block w-full btn-secondary text-center bg-green-600 hover:bg-green-700 text-white">
-                List Produce
-              </Link>
-              <Link to="/farmer/browse-procurement-requests" className="block w-full btn-secondary text-center bg-blue-600 hover:bg-blue-700 text-white">
-                Browse Buyer Requests
-              </Link>
-              <Link to="/warehouses" className="block w-full btn-secondary text-center bg-purple-600 hover:bg-purple-700 text-white">
-                Check Warehouse Availability
-              </Link>
-              <Link to="/vehicles" className="block w-full btn-secondary text-center bg-orange-600 hover:bg-orange-700 text-white">
-                Browse Transport Vehicles
-              </Link>
-              <Link to="/my-vehicle-bookings" className="block w-full btn-secondary text-center bg-indigo-600 hover:bg-indigo-700 text-white">
-                My Vehicle Bookings
-              </Link>
-              <Link to="/invoices" className="block w-full btn-secondary text-center bg-gray-600 hover:bg-gray-700 text-white">
-                View Invoices
-              </Link>
+            <div className="space-y-3">
+              {/* Primary Actions */}
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  to="/farmer/crop-planning"
+                  className="p-3 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg hover:shadow-lg transition text-center"
+                >
+                  <Sprout className="h-6 w-6 mx-auto mb-1" />
+                  <p className="text-sm font-semibold">Plan Crop</p>
+                </Link>
+                <Link
+                  to="/farmer/harvest"
+                  className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-lg hover:shadow-lg transition text-center"
+                >
+                  <Package className="h-6 w-6 mx-auto mb-1" />
+                  <p className="text-sm font-semibold">Manage Harvest</p>
+                </Link>
+              </div>
+
+              {/* Secondary Actions */}
+              <div className="space-y-2">
+                <Link
+                  to="/farmer/selling-strategy"
+                  className="flex items-center p-3 bg-orange-50 hover:bg-orange-100 rounded-lg transition group"
+                >
+                  <div className="w-10 h-10 bg-orange-100 group-hover:bg-orange-200 rounded-lg flex items-center justify-center mr-3">
+                    <Lightbulb className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm">AI Selling Strategy</p>
+                    <p className="text-xs text-gray-600">Get smart pricing insights</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/farmer/browse-procurement-requests"
+                  className="flex items-center p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition group"
+                >
+                  <div className="w-10 h-10 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center mr-3">
+                    <ShoppingCart className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm">Browse Buyer Requests</p>
+                    <p className="text-xs text-gray-600">Find buyers for your produce</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/warehouses"
+                  className="flex items-center p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition group"
+                >
+                  <div className="w-10 h-10 bg-purple-100 group-hover:bg-purple-200 rounded-lg flex items-center justify-center mr-3">
+                    <Warehouse className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm">Warehouses</p>
+                    <p className="text-xs text-gray-600">Check storage availability</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/vehicles"
+                  className="flex items-center p-3 bg-amber-50 hover:bg-amber-100 rounded-lg transition group"
+                >
+                  <div className="w-10 h-10 bg-amber-100 group-hover:bg-amber-200 rounded-lg flex items-center justify-center mr-3">
+                    <Truck className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm">Transport Vehicles</p>
+                    <p className="text-xs text-gray-600">Book transport for delivery</p>
+                  </div>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Recent Listings Section */}
-      <div className="card">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Recent Listings</h2>
-          <Link to="/farmer/my-listings" className="text-green-600 hover:text-green-700 text-sm font-medium">
-            View All →
-          </Link>
-        </div>
-
-        {loadingListings ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2 text-sm">Loading listings...</p>
-          </div>
-        ) : recentListings.length === 0 ? (
-          <div className="text-center py-8">
-            <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 mb-3">No listings yet</p>
-            <Link
-              to="/farmer/list-produce"
-              className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
-            >
-              Create Your First Listing
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {recentListings.map((listing) => (
-              <div key={listing.id} className="border border-gray-200 rounded-lg p-4 hover:border-green-300 transition">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="font-semibold text-gray-900">
-                        {listing.cropType} {listing.variety && `(${listing.variety})`}
-                      </h3>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        listing.status === 'open' ? 'bg-green-100 text-green-700' :
-                        listing.status === 'negotiating' ? 'bg-yellow-100 text-yellow-700' :
-                        listing.status === 'accepted' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {listing.status}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-3 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <Package className="h-4 w-4 mr-1.5" />
-                        <span>{listing.quantity} {listing.quantityUnit}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 mr-1.5" />
-                        <span>₹{listing.minimumPrice}/{listing.quantityUnit}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-1.5" />
-                        <span className="truncate">{listing.pickupLocation}</span>
-                      </div>
-                    </div>
-
-                    {listing.quotesCount > 0 && (
-                      <div className="mt-2 text-sm">
-                        <span className="text-green-600 font-medium">{listing.quotesCount} quotes received</span>
-                        {listing.currentBestOffer > 0 && (
-                          <span className="text-gray-600 ml-2">
-                            • Best: ₹{listing.currentBestOffer}/{listing.quantityUnit}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <Link
-                    to="/farmer/my-listings"
-                    className="ml-4 px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-                  >
-                    Manage
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )

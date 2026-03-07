@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { 
   Home, Sprout, ShoppingCart, Truck, Warehouse, 
-  Settings, User, Menu, X, LogOut, UserCircle 
+  Settings, User, Menu, X, LogOut, UserCircle, Package, Receipt
 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import NotificationBell from './NotificationBell'
@@ -115,11 +115,81 @@ const Layout = () => {
                 </button>
 
                 {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    <div className="px-4 py-2 border-b border-gray-200">
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 max-h-[80vh] overflow-y-auto">
+                    <div className="px-4 py-3 border-b border-gray-200">
                       <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                       <p className="text-xs text-gray-500">{user?.email}</p>
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-primary-100 text-primary-700 text-xs font-medium rounded-full capitalize">
+                        {user?.role}
+                      </span>
                     </div>
+
+                    {/* My Purchases Section */}
+                    <div className="px-4 py-3 border-b border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-gray-900 flex items-center">
+                          <Receipt className="h-4 w-4 mr-1.5" />
+                          My Purchases
+                        </h3>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {/* Sales to Buyers */}
+                        <Link
+                          to="/farmer/my-listings"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center justify-between p-2 bg-green-50 hover:bg-green-100 rounded-lg transition group"
+                        >
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-green-100 group-hover:bg-green-200 rounded-lg flex items-center justify-center mr-2">
+                              <Package className="h-4 w-4 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-gray-900">Sales to Buyers</p>
+                              <p className="text-xs text-gray-500">View your listings</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-green-600 font-medium">→</span>
+                        </Link>
+
+                        {/* Storage Bookings */}
+                        <Link
+                          to="/my-storage-bookings"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center justify-between p-2 bg-purple-50 hover:bg-purple-100 rounded-lg transition group"
+                        >
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-purple-100 group-hover:bg-purple-200 rounded-lg flex items-center justify-center mr-2">
+                              <Warehouse className="h-4 w-4 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-gray-900">Storage Bookings</p>
+                              <p className="text-xs text-gray-500">Warehouse rentals</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-purple-600 font-medium">→</span>
+                        </Link>
+
+                        {/* Transport Bookings */}
+                        <Link
+                          to="/my-vehicle-bookings"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center justify-between p-2 bg-amber-50 hover:bg-amber-100 rounded-lg transition group"
+                        >
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-amber-100 group-hover:bg-amber-200 rounded-lg flex items-center justify-center mr-2">
+                              <Truck className="h-4 w-4 text-amber-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-gray-900">Transport Bookings</p>
+                              <p className="text-xs text-gray-500">Vehicle reservations</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-amber-600 font-medium">→</span>
+                        </Link>
+                      </div>
+                    </div>
+
                     <button
                       onClick={() => {
                         setUserMenuOpen(false)
@@ -158,6 +228,9 @@ const Layout = () => {
               <div className="px-3 py-2 border-b border-gray-200 mb-2">
                 <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                 <p className="text-xs text-gray-500">{user?.email}</p>
+                <span className="inline-block mt-1 px-2 py-0.5 bg-primary-100 text-primary-700 text-xs font-medium rounded-full capitalize">
+                  {user?.role}
+                </span>
               </div>
               {navigation.map((item) => {
                 const Icon = item.icon
@@ -177,6 +250,38 @@ const Layout = () => {
                   </Link>
                 )
               })}
+
+              {/* My Purchases Section - Mobile */}
+              <div className="pt-2 pb-2 border-t border-gray-200 mt-2">
+                <p className="px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  My Purchases
+                </p>
+                <Link
+                  to="/farmer/my-listings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  <Package className="h-4 w-4 mr-2 text-green-600" />
+                  Sales to Buyers
+                </Link>
+                <Link
+                  to="/my-storage-bookings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  <Warehouse className="h-4 w-4 mr-2 text-purple-600" />
+                  Storage Bookings
+                </Link>
+                <Link
+                  to="/my-vehicle-bookings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  <Truck className="h-4 w-4 mr-2 text-amber-600" />
+                  Transport Bookings
+                </Link>
+              </div>
+
               <button
                 onClick={() => {
                   setMobileMenuOpen(false)
