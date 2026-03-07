@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MapPin, Calendar, Package, MessageSquare, Award, X, User } from 'lucide-react'
 import { apiService } from '../../services/api'
 import StatusWorkflow from '../../components/StatusWorkflow'
-import NegotiationModal from '../../components/NegotiationModal'
 
 const ProcurementRequestDetail = () => {
   const { id } = useParams()
@@ -16,7 +15,6 @@ const ProcurementRequestDetail = () => {
   const [quoteQuantity, setQuoteQuantity] = useState('')
   const [quoteMessage, setQuoteMessage] = useState('')
   const [isCountering, setIsCountering] = useState(false)
-  const [showNegotiateModal, setShowNegotiateModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -116,9 +114,27 @@ const ProcurementRequestDetail = () => {
 
   const handleNegotiate = async (updates: any) => {
     try {
-      await apiService.negotiateProcurement(id!, updates)
+      // Farmer should submit/update their quote, not negotiate the request directly
+      if (existingQuote) {
+        // Update existing quote
+        await apiService.updateQuote(existingQuote.id, {
+          pricePerUnit: updates.maxPricePerUnit || updates.minimumPrice,
+          quantity: updates.quantity,
+          message: updates.negotiationNotes || 'Updated quote terms'
+        })
+        alert('Quote updated successfully!')
+      } else {
+        // Submit new quote
+        await apiService.submitQuote({
+          requestId: id!,
+          pricePerUnit: updates.maxPricePerUnit || updates.minimumPrice,
+          quantity: updates.quantity,
+          quantityUnit: request?.quantityUnit || 'kg',
+          message: updates.negotiationNotes || 'Interested in your procurement request'
+        })
+        alert('Quote submitted successfully!')
+      }
       await loadData()
-      alert('Procurement request updated successfully!')
     } catch (error) {
       console.error('Negotiation failed:', error)
       throw error
@@ -154,16 +170,7 @@ const ProcurementRequestDetail = () => {
           Back to Browse Requests
         </button>
 
-        {/* Negotiate Button Only - Farmers can't award buyer's requests */}
-        {request.status !== 'awarded' && (
-          <button
-            onClick={() => setShowNegotiateModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
-          >
-            <MessageSquare className="h-4 w-4" />
-            <span>Negotiate</span>
-          </button>
-        )}
+        {/* Farmers should use "Submit Quote" button instead of Negotiate */}
       </div>
 
       {/* Request Details */}
@@ -421,14 +428,6 @@ const ProcurementRequestDetail = () => {
         </div>
       )}
 
-      {/* Negotiation Modal */}
-      <NegotiationModal
-        isOpen={showNegotiateModal}
-        onClose={() => setShowNegotiateModal(false)}
-        onSubmit={handleNegotiate}
-        data={request}
-        type="procurement"
-      />
     </div>
   )
 }

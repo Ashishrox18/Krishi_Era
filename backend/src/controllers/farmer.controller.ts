@@ -424,15 +424,20 @@ export class FarmerController {
     try {
       const userId = req.user!.id;
       
+      console.log(`🌾 Fetching farmer listings for user: ${userId}`);
+      
       // Get all items from orders table
       const allItems = await dynamoDBService.scan(process.env.DYNAMODB_ORDERS_TABLE!);
       
-      // Filter for farmer's own listings (have farmerId matching current user)
+      console.log(`📦 Total items in orders table: ${allItems.length}`);
+      
+      // Filter for farmer's own listings (have farmerId matching current user AND type is farmer_listing)
       const requests = allItems.filter((item: any) => 
-        item.farmerId === userId
+        item.farmerId === userId && item.type === 'farmer_listing'
       );
 
-      console.log(`Found ${requests.length} farmer listings for user ${userId}`);
+      console.log(`✅ Found ${requests.length} farmer listings for user ${userId}`);
+      console.log(`📋 Listings:`, requests.map((r: any) => ({ id: r.id, cropType: r.cropType, status: r.status })));
       
       res.json({ requests });
     } catch (error) {

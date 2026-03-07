@@ -91,6 +91,12 @@ class ApiService {
     return response.data;
   }
 
+  async getMyListings() {
+    // Farmer's listings are the same as purchase requests
+    const response = await this.client.get('/farmer/purchase-requests');
+    return response.data;
+  }
+
   async getPurchaseRequest(id: string) {
     const response = await this.client.get(`/farmer/purchase-requests/${id}`);
     return response.data;
@@ -206,6 +212,11 @@ class ApiService {
 
   async submitOffer(data: any) {
     const response = await this.client.post('/buyer/offers', data);
+    return response.data;
+  }
+
+  async getMyOffers() {
+    const response = await this.client.get('/offers/my-offers');
     return response.data;
   }
 

@@ -162,15 +162,20 @@ export class BuyerController {
     try {
       const userId = req.user!.id;
       
+      console.log(`🛒 Fetching procurement requests for buyer: ${userId}`);
+      
       // Get all items from orders table
       const allItems = await dynamoDBService.scan(process.env.DYNAMODB_ORDERS_TABLE!);
       
-      // Filter for buyer's own procurement requests (have buyerId matching current user)
+      console.log(`📦 Total items in orders table: ${allItems.length}`);
+      
+      // Filter for buyer's own procurement requests (have buyerId matching current user AND type is procurement_request)
       const requests = allItems.filter((item: any) => 
-        item.buyerId === userId
+        item.buyerId === userId && item.type === 'procurement_request'
       );
 
-      console.log(`Found ${requests.length} buyer procurement requests for user ${userId}`);
+      console.log(`✅ Found ${requests.length} procurement requests for buyer ${userId}`);
+      console.log(`📋 Requests:`, requests.map((r: any) => ({ id: r.id, cropType: r.cropType, status: r.status })));
       
       res.json({ requests });
     } catch (error) {
@@ -214,14 +219,22 @@ export class BuyerController {
         message
       } = req.body;
 
+      console.log('📝 Submitting offer:', { listingId, buyerId: userId, pricePerUnit, quantity });
+
       // Get the listing to verify it exists
       const listing = await dynamoDBService.get(process.env.DYNAMODB_ORDERS_TABLE!, { id: listingId });
       
       if (!listing) {
+        console.error('❌ Listing not found:', listingId);
         return res.status(404).json({ error: 'Listing not found' });
       }
 
-      if (listing.status !== 'open' && listing.status !== 'released') {
+      console.log('📋 Listing status:', listing.status);
+
+      // Allow offers on listings that are open, released, in_progress, or negotiating
+      const acceptableStatuses = ['open', 'released', 'in_progress', 'negotiating'];
+      if (!acceptableStatuses.includes(listing.status)) {
+        console.error('❌ Listing not accepting offers. Status:', listing.status);
         return res.status(400).json({ error: 'This listing is no longer accepting offers' });
       }
 
@@ -230,18 +243,22 @@ export class BuyerController {
         listingId,
         farmerId,
         buyerId: userId,
+        buyerName: (req as any).user.name || 'Buyer',
         pricePerUnit,
         quantity,
         quantityUnit,
         totalAmount: pricePerUnit * quantity,
         message: message || '',
         status: 'pending',
+        type: 'offer', // Add type to distinguish from other records
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
       // Store offer in database
       await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, offer);
+
+      console.log('✅ Offer submitted successfully:', offer.id);
 
       // Update listing's quote count
       const currentQuotesCount = listing.quotesCount || 0;

@@ -62,17 +62,71 @@ export class OffersController {
     try {
       const { listingId } = req.params;
 
-      // Scan for offers with the specific listingId and type
-      const offers = await dynamoDBService.scan(
-        OFFERS_TABLE,
-        'listingId = :listingId AND #type = :type',
-        { ':listingId': listingId, ':type': 'offer' },
-        { '#type': 'type' }
+      console.log(`📋 Fetching offers for listing: ${listingId}`);
+
+      // Get all items from the table
+      const allItems = await dynamoDBService.scan(OFFERS_TABLE);
+      
+      // Filter for offers with the specific listingId
+      // Accept both offers with type='offer' AND offers without type field (backward compatibility)
+      const offers = allItems.filter((item: any) => 
+        item.listingId === listingId && 
+        (item.type === 'offer' || (!item.type && item.buyerId)) // Backward compatible
       );
+
+      console.log(`✅ Found ${offers.length} offers for listing ${listingId}`);
 
       res.json({ success: true, offers });
     } catch (error) {
       console.error('Error getting offers:', error);
+      res.status(500).json({ error: 'Failed to get offers' });
+    }
+  }
+
+  // Get buyer's own offers
+  async getMyOffers(req: Request, res: Response) {
+    try {
+      const buyerId = (req as any).user.id;
+
+      console.log(`🛍️ Fetching offers for buyer: ${buyerId}`);
+
+      // Scan for offers with the specific buyerId
+      const allItems = await dynamoDBService.scan(OFFERS_TABLE);
+      
+      // Filter for offers - backward compatible
+      const offers = allItems.filter((item: any) => 
+        item.buyerId === buyerId && 
+        (item.type === 'offer' || (!item.type && item.listingId)) // Backward compatible
+      );
+
+      console.log(`✅ Found ${offers.length} offers for buyer ${buyerId}`);
+
+      // Get listing details for each offer
+      const offersWithListings = await Promise.all(
+        offers.map(async (offer: any) => {
+          try {
+            const listing = await dynamoDBService.get(ORDERS_TABLE, { id: offer.listingId });
+            return {
+              ...offer,
+              listing: listing ? {
+                id: listing.id,
+                cropType: listing.cropType,
+                variety: listing.variety,
+                farmerId: listing.farmerId,
+                status: listing.status,
+                pickupLocation: listing.pickupLocation
+              } : null
+            };
+          } catch (error) {
+            console.error('Error fetching listing for offer:', offer.id, error);
+            return offer;
+          }
+        })
+      );
+
+      res.json({ success: true, offers: offersWithListings });
+    } catch (error) {
+      console.error('Error getting buyer offers:', error);
       res.status(500).json({ error: 'Failed to get offers' });
     }
   }

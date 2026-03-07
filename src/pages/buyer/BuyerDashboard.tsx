@@ -7,7 +7,9 @@ import { apiService } from '../../services/api'
 const BuyerDashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [procurementRequests, setProcurementRequests] = useState<any[]>([]);
+  const [myOffers, setMyOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingOffers, setLoadingOffers] = useState(true);
   const [priceData, setPriceData] = useState<any[]>([]);
 
   useEffect(() => {
@@ -18,6 +20,7 @@ const BuyerDashboard = () => {
     }
     
     loadDashboardData();
+    loadMyOffers();
   }, []);
 
   const loadDashboardData = async () => {
@@ -40,6 +43,18 @@ const BuyerDashboard = () => {
       console.error('Failed to load dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMyOffers = async () => {
+    try {
+      const response = await apiService.getMyOffers();
+      console.log('📦 Loaded buyer offers:', response.offers?.length || 0);
+      setMyOffers(response.offers || []);
+    } catch (error) {
+      console.error('Failed to load offers:', error);
+    } finally {
+      setLoadingOffers(false);
     }
   };
 
@@ -217,6 +232,85 @@ const BuyerDashboard = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* My Offers Section */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">My Offers on Farmer Listings</h2>
+          <Link to="/buyer/procurement" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            Browse Listings →
+          </Link>
+        </div>
+
+        {loadingOffers ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="text-gray-600 mt-2 text-sm">Loading offers...</p>
+          </div>
+        ) : myOffers.length === 0 ? (
+          <div className="text-center py-8">
+            <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-600 mb-3">No offers submitted yet</p>
+            <Link
+              to="/buyer/procurement"
+              className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+            >
+              Browse Farmer Listings
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {myOffers.slice(0, 5).map((offer) => (
+              <Link
+                key={offer.id}
+                to={`/buyer/farmer-listing/${offer.listingId}`}
+                className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition border border-gray-200 hover:border-blue-300"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {offer.listing?.cropType || 'Unknown Crop'}
+                      {offer.listing?.variety && ` (${offer.listing.variety})`}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Submitted {new Date(offer.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    offer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    offer.status === 'countered' ? 'bg-orange-100 text-orange-800' :
+                    offer.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {offer.status.toUpperCase()}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-600">Your Offer</p>
+                    <p className="font-medium text-blue-600">₹{offer.pricePerUnit}/{offer.quantityUnit}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Quantity</p>
+                    <p className="font-medium text-gray-900">{offer.quantity} {offer.quantityUnit}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Total</p>
+                    <p className="font-medium text-gray-900">₹{(offer.pricePerUnit * offer.quantity).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {offer.negotiationHistory && offer.negotiationHistory.length > 0 && (
+                  <div className="mt-2 text-xs text-orange-600">
+                    🔄 {offer.negotiationHistory.length} counter offer(s) from farmer
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

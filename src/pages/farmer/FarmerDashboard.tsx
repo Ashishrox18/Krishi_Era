@@ -31,9 +31,11 @@ const FarmerDashboard = () => {
 
   const loadRecentListings = async () => {
     try {
-      const response = await apiService.getMyPurchaseRequests();
+      const response = await apiService.getMyListings();
       // Get only the 3 most recent listings
-      setRecentListings((response.requests || []).slice(0, 3));
+      const listings = response.requests || [];
+      console.log('📦 Loaded farmer listings:', listings.length);
+      setRecentListings(listings.slice(0, 3));
     } catch (error) {
       console.error('Failed to load listings:', error);
     } finally {

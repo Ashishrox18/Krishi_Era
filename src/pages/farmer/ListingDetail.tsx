@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Calendar, Package, MessageSquare, Award, X, User } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, MapPin, Calendar, Package, X, User, MessageSquare, Award } from 'lucide-react'
 import { apiService } from '../../services/api'
 import StatusWorkflow from '../../components/StatusWorkflow'
-import NegotiationModal from '../../components/NegotiationModal'
 
 const ListingDetail = () => {
   const { id } = useParams()
@@ -15,7 +14,6 @@ const ListingDetail = () => {
   const [selectedOffer, setSelectedOffer] = useState<any>(null)
   const [counterPrice, setCounterPrice] = useState('')
   const [counterMessage, setCounterMessage] = useState('')
-  const [showNegotiateModal, setShowNegotiateModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -72,41 +70,11 @@ const ListingDetail = () => {
     try {
       await apiService.acceptOffer(offerId)
       await loadData()
-      alert('Offer accepted successfully!')
+      alert('Offer accepted! Deal finalized and invoice generated.')
     } catch (error) {
       console.error('Failed to accept offer:', error)
       alert('Failed to accept offer')
     }
-  }
-
-  const handleNegotiate = async (updates: any) => {
-    try {
-      await apiService.negotiateListing(id!, updates)
-      await loadData()
-      alert('Listing updated successfully!')
-    } catch (error) {
-      console.error('Negotiation failed:', error)
-      throw error
-    }
-  }
-
-  const handleAward = () => {
-    // Check if user is authorized to award
-    const user = JSON.parse(sessionStorage.getItem('user') || '{}')
-    
-    // Only the farmer (owner) can award their listing
-    if (listing?.farmerId !== user.id) {
-      alert('Only the listing owner can award this listing')
-      return
-    }
-
-    // Check if already awarded
-    if (listing?.status === 'awarded') {
-      alert('This listing has already been awarded')
-      return
-    }
-
-    navigate(`/award/listing/${id}`)
   }
 
   if (loading) {
@@ -137,29 +105,6 @@ const ListingDetail = () => {
           <ArrowLeft className="h-5 w-5 mr-2" />
           Back to My Listings
         </button>
-
-        {/* Negotiate & Award Buttons */}
-        {listing.status !== 'awarded' && (
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setShowNegotiateModal(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Negotiate</span>
-            </button>
-            {/* Only show award button to listing owner */}
-            {listing.farmerId === JSON.parse(sessionStorage.getItem('user') || '{}').id && (
-              <button
-                onClick={handleAward}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-              >
-                <Award className="h-4 w-4" />
-                <span>Award</span>
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Listing Details */}
@@ -174,12 +119,10 @@ const ListingDetail = () => {
             </p>
           </div>
           <span className={`px-4 py-2 rounded-full text-sm font-medium ${
-            listing.status === 'open' ? 'bg-green-100 text-green-800' :
-            listing.status === 'negotiating' ? 'bg-yellow-100 text-yellow-800' :
-            listing.status === 'awarded' ? 'bg-blue-100 text-blue-800' :
-            'bg-gray-100 text-gray-800'
+            listing.status === 'awarded' ? 'bg-green-100 text-green-800' :
+            'bg-blue-100 text-blue-800'
           }`}>
-            {listing.status?.replace('_', ' ').toUpperCase() || 'OPEN'}
+            {listing.status === 'awarded' ? 'DEAL FINALIZED' : 'OPEN FOR OFFERS'}
           </span>
         </div>
 
@@ -421,14 +364,6 @@ const ListingDetail = () => {
         </div>
       )}
 
-      {/* Negotiation Modal */}
-      <NegotiationModal
-        isOpen={showNegotiateModal}
-        onClose={() => setShowNegotiateModal(false)}
-        onSubmit={handleNegotiate}
-        data={listing}
-        type="listing"
-      />
     </div>
   )
 }

@@ -8,6 +8,9 @@ const controller = new OffersController();
 // Submit offer (buyer)
 router.post('/', authenticate, controller.submitOffer);
 
+// Get buyer's own offers
+router.get('/my-offers', authenticate, controller.getMyOffers);
+
 // Get offers for listing
 router.get('/listing/:listingId', authenticate, controller.getOffersForListing);
 

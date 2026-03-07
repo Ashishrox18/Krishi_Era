@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MapPin, Calendar, Package, TrendingUp, MessageSquare, Award, X } from 'lucide-react'
 import { apiService } from '../../services/api'
 import StatusWorkflow from '../../components/StatusWorkflow'
-import NegotiationModal from '../../components/NegotiationModal'
 
 const ProcurementRequestDetail = () => {
   const { id } = useParams()
@@ -15,7 +14,6 @@ const ProcurementRequestDetail = () => {
   const [selectedQuote, setSelectedQuote] = useState<any>(null)
   const [counterPrice, setCounterPrice] = useState('')
   const [counterMessage, setCounterMessage] = useState('')
-  const [showNegotiateModal, setShowNegotiateModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -64,49 +62,19 @@ const ProcurementRequestDetail = () => {
     }
   }
 
-  const handleAwardQuote = async (quoteId: string) => {
-    if (!confirm('Are you sure you want to award this quote? This action cannot be undone.')) {
+  const handleAcceptQuote = async (quoteId: string) => {
+    if (!confirm('Are you sure you want to accept this quote? This will finalize the deal and generate an invoice.')) {
       return
     }
 
     try {
       await apiService.acceptQuote(quoteId)
       await loadData()
-      alert('Quote awarded successfully!')
+      alert('Quote accepted! Deal finalized and invoice generated.')
     } catch (error) {
-      console.error('Failed to award quote:', error)
-      alert('Failed to award quote')
+      console.error('Failed to accept quote:', error)
+      alert('Failed to accept quote')
     }
-  }
-
-  const handleNegotiate = async (updates: any) => {
-    try {
-      await apiService.negotiateProcurement(id!, updates)
-      await loadData()
-      alert('Procurement request updated successfully!')
-    } catch (error) {
-      console.error('Negotiation failed:', error)
-      throw error
-    }
-  }
-
-  const handleAward = () => {
-    // Check if user is authorized to award
-    const user = JSON.parse(sessionStorage.getItem('user') || '{}')
-    
-    // Only the buyer (owner) can award their procurement request
-    if (request?.buyerId !== user.id) {
-      alert('Only the request owner can award this procurement request')
-      return
-    }
-
-    // Check if already awarded
-    if (request?.status === 'awarded') {
-      alert('This request has already been awarded')
-      return
-    }
-
-    navigate(`/award/procurement/${id}`)
   }
 
   if (loading) {
@@ -137,29 +105,6 @@ const ProcurementRequestDetail = () => {
           <ArrowLeft className="h-5 w-5 mr-2" />
           Back to My Requests
         </button>
-
-        {/* Negotiate & Award Buttons */}
-        {request.status !== 'awarded' && (
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setShowNegotiateModal(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Negotiate</span>
-            </button>
-            {/* Only show award button to request owner */}
-            {request.buyerId === JSON.parse(sessionStorage.getItem('user') || '{}').id && (
-              <button
-                onClick={handleAward}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-              >
-                <Award className="h-4 w-4" />
-                <span>Award</span>
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Request Details */}
@@ -174,14 +119,10 @@ const ProcurementRequestDetail = () => {
             </p>
           </div>
           <span className={`px-4 py-2 rounded-full text-sm font-medium ${
-            request.status === 'released' ? 'bg-green-100 text-green-800' :
-            request.status === 'open' ? 'bg-green-100 text-green-800' :
-            request.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-            request.status === 'negotiating' ? 'bg-yellow-100 text-yellow-800' :
-            request.status === 'awarded' ? 'bg-purple-100 text-purple-800' :
-            'bg-gray-100 text-gray-800'
+            request.status === 'awarded' ? 'bg-green-100 text-green-800' :
+            'bg-blue-100 text-blue-800'
           }`}>
-            {request.status.replace('_', ' ').toUpperCase()}
+            {request.status === 'awarded' ? 'DEAL FINALIZED' : 'OPEN FOR QUOTES'}
           </span>
         </div>
 
@@ -307,18 +248,18 @@ const ProcurementRequestDetail = () => {
                       Counter Offer
                     </button>
                     <button
-                      onClick={() => handleAwardQuote(quote.id)}
+                      onClick={() => handleAcceptQuote(quote.id)}
                       className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center"
                     >
                       <Award className="h-4 w-4 mr-2" />
-                      Award Quote
+                      Accept Quote
                     </button>
                   </div>
                 )}
 
                 {quote.status === 'accepted' && (
                   <div className="p-3 bg-green-50 rounded border border-green-200">
-                    <p className="text-sm font-medium text-green-900">✓ This quote has been awarded</p>
+                    <p className="text-sm font-medium text-green-900">✓ This quote has been accepted - Deal finalized!</p>
                   </div>
                 )}
               </div>
@@ -399,14 +340,6 @@ const ProcurementRequestDetail = () => {
         </div>
       )}
 
-      {/* Negotiation Modal */}
-      <NegotiationModal
-        isOpen={showNegotiateModal}
-        onClose={() => setShowNegotiateModal(false)}
-        onSubmit={handleNegotiate}
-        data={request}
-        type="procurement"
-      />
     </div>
   )
 }

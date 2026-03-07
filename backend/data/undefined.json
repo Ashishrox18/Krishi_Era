@@ -1581,10 +1581,11 @@
     "notificationType": "farmer_listing",
     "relatedId": "2a4d9445-9f70-4fbb-b825-0bb21ab10ac3",
     "link": "/buyer/farmer-listing/2a4d9445-9f70-4fbb-b825-0bb21ab10ac3",
-    "read": false,
+    "read": true,
     "type": "notification",
     "createdAt": "2026-03-06T01:11:09.099Z",
-    "updatedAt": "2026-03-06T01:11:09.099Z"
+    "updatedAt": "2026-03-07T09:31:31.839Z",
+    "readAt": "2026-03-07T09:31:31.839Z"
   },
   {
     "id": "8fa96500-b1dd-4778-b38c-fe25ff97eb16",
@@ -1768,7 +1769,7 @@
     "read": true,
     "type": "notification",
     "createdAt": "2026-03-06T14:34:27.433Z",
-    "updatedAt": "2026-03-06T14:56:24.377Z",
-    "readAt": "2026-03-06T14:56:24.377Z"
+    "updatedAt": "2026-03-07T09:35:54.341Z",
+    "readAt": "2026-03-07T09:35:54.341Z"
   }
 ]

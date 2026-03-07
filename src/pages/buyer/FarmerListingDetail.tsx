@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MapPin, Calendar, Package, MessageSquare, Award, X, User } from 'lucide-react'
 import { apiService } from '../../services/api'
 import StatusWorkflow from '../../components/StatusWorkflow'
-import NegotiationModal from '../../components/NegotiationModal'
 
 const FarmerListingDetail = () => {
   const { id } = useParams()
@@ -16,7 +15,6 @@ const FarmerListingDetail = () => {
   const [offerQuantity, setOfferQuantity] = useState('')
   const [offerMessage, setOfferMessage] = useState('')
   const [isCountering, setIsCountering] = useState(false)
-  const [showNegotiateModal, setShowNegotiateModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -120,17 +118,6 @@ const FarmerListingDetail = () => {
     setShowOfferModal(true)
   }
 
-  const handleNegotiate = async (updates: any) => {
-    try {
-      await apiService.negotiateListing(id!, updates)
-      await loadData()
-      alert('Listing updated successfully!')
-    } catch (error) {
-      console.error('Negotiation failed:', error)
-      throw error
-    }
-  }
-
   const handleAward = () => {
     navigate(`/award/listing/${id}`)
   }
@@ -164,24 +151,15 @@ const FarmerListingDetail = () => {
           Back to Browse Listings
         </button>
         
-        {/* Negotiate & Award Buttons */}
-        {listing.status !== 'awarded' && (
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setShowNegotiateModal(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Negotiate</span>
-            </button>
-            <button
-              onClick={handleAward}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
-              <Award className="h-4 w-4" />
-              <span>Award</span>
-            </button>
-          </div>
+        {/* Award Button - Only show if buyer has an accepted offer */}
+        {listing.status !== 'awarded' && myOffer?.status === 'accepted' && (
+          <button
+            onClick={handleAward}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+          >
+            <Award className="h-4 w-4" />
+            <span>Award Contract</span>
+          </button>
         )}
       </div>
 
@@ -436,14 +414,6 @@ const FarmerListingDetail = () => {
         </div>
       )}
 
-      {/* Negotiation Modal */}
-      <NegotiationModal
-        isOpen={showNegotiateModal}
-        onClose={() => setShowNegotiateModal(false)}
-        onSubmit={handleNegotiate}
-        data={listing}
-        type="listing"
-      />
     </div>
   )
 }
