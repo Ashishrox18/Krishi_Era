@@ -49,11 +49,39 @@ const HarvestManagement = () => {
   const [harvests, setHarvests] = useState<any[]>([]);
   const [loadingHarvests, setLoadingHarvests] = useState(false);
   const [deletingCropIds, setDeletingCropIds] = useState<Set<string>>(new Set());
+  const [soldCrops, setSoldCrops] = useState<any[]>([]); // Store sold crops with sale info
   
   // Fetch crops/harvests on component mount
   useEffect(() => {
     fetchHarvests();
+    fetchSoldCrops();
   }, []);
+  
+  // Auto-refresh sold crops when on listed-produce tab
+  useEffect(() => {
+    if (activeTab === 'listed-produce') {
+      fetchSoldCrops();
+      const interval = setInterval(fetchSoldCrops, 10000); // Refresh every 10 seconds
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+  
+  const fetchSoldCrops = async () => {
+    try {
+      // Fetch farmer's listings which includes finalized sales
+      const response = await apiService.getMyPurchaseRequests();
+      const listings = response.requests || [];
+      
+      // Filter for finalized/awarded listings (these are sold items)
+      const finalizedListings = listings.filter((listing: any) => 
+        listing.status === 'awarded' && listing.finalPrice
+      );
+      
+      setSoldCrops(finalizedListings);
+    } catch (error) {
+      console.error('Failed to fetch sold crops:', error);
+    }
+  };
   
   const fetchHarvests = async () => {
     setLoadingHarvests(true);
@@ -624,7 +652,8 @@ const HarvestManagement = () => {
         expectedPrice: parseFloat(formData.pricePerUnit),
         pickupLocation: formData.location,
         availableFrom: formData.availableFrom,
-        description: formData.description
+        description: formData.description,
+        cropId: selectedHarvest?.id // Pass the crop ID
       });
 
       // Update crop status to 'listed' if we have the crop ID
@@ -736,18 +765,18 @@ const HarvestManagement = () => {
             <div className="card">
               <p className="text-sm text-gray-600">Growing</p>
               <p className="text-3xl font-bold text-gray-600">
-                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length}
+                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed' && h.status !== 'sold').length}
               </p>
             </div>
             <div className="card">
               <p className="text-sm text-gray-600">Total Planted</p>
               <p className="text-3xl font-bold text-gray-900">
-                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length}
+                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed' && h.status !== 'sold').length}
               </p>
             </div>
           </div>
 
-          {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length > 0 && (
+          {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed' && h.status !== 'sold').length > 0 && (
             <>
               {/* Helper Info Card */}
               <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4">
@@ -763,7 +792,7 @@ const HarvestManagement = () => {
               </div>
 
               <div className="space-y-4">
-                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').map((harvest) => (
+                {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed' && h.status !== 'sold').map((harvest) => (
                   <div key={harvest.id || harvest.crop} className="card">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -836,7 +865,7 @@ const HarvestManagement = () => {
           )}
 
           {/* Empty State */}
-          {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed').length === 0 && !loadingHarvests && (
+          {harvests.filter(h => h.status !== 'ready' && h.status !== 'listed' && h.status !== 'sold').length === 0 && !loadingHarvests && (
             <div className="card text-center py-12">
               <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No Planted Crops</h3>
@@ -1015,14 +1044,13 @@ const HarvestManagement = () => {
               </p>
             </div>
             <div className="card">
-              <p className="text-sm text-gray-600">Potential Revenue</p>
-              <p className="text-3xl font-bold text-gray-900">
-                ₹{harvests.filter(h => h.status === 'listed').reduce((sum, h) => {
-                  const yieldMatch = h.expectedYield?.match(/([\d.]+)/);
-                  const priceMatch = h.marketPrice?.match(/₹?([\d,]+)/);
-                  const yield_ = yieldMatch ? parseFloat(yieldMatch[1]) : 0;
-                  const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
-                  return sum + (yield_ * price);
+              <p className="text-sm text-gray-600">Revenue</p>
+              <p className="text-3xl font-bold text-green-600">
+                ₹{soldCrops.reduce((sum, crop) => {
+                  // Calculate actual revenue from sold crops
+                  const quantity = crop.quantity || 0;
+                  const price = crop.finalPrice || crop.currentBestOffer || 0;
+                  return sum + (quantity * price);
                 }, 0).toLocaleString('en-IN')}
               </p>
             </div>

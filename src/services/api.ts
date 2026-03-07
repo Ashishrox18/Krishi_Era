@@ -235,7 +235,7 @@ class ApiService {
   }
 
   async getOffersForListing(listingId: string) {
-    const response = await this.client.get(`/farmer/listings/${listingId}/offers`);
+    const response = await this.client.get(`/offers/listing/${listingId}`);
     return response.data;
   }
 
@@ -250,7 +250,17 @@ class ApiService {
   }
 
   async acceptOffer(offerId: string) {
-    const response = await this.client.post(`/offers/${offerId}/accept`);
+    const response = await this.client.post(`/offers/${offerId}/accept-award`);
+    return response.data;
+  }
+
+  async confirmAcceptedOffer(offerId: string) {
+    const response = await this.client.post(`/offers/${offerId}/confirm-acceptance`);
+    return response.data;
+  }
+
+  async proposeAward(offerId: string) {
+    const response = await this.client.post(`/offers/${offerId}/propose-award`);
     return response.data;
   }
 
@@ -600,6 +610,11 @@ class ApiService {
     return response.data;
   }
 
+  async deleteOffer(offerId: string) {
+    const response = await this.client.delete(`/offers/${offerId}`);
+    return response.data;
+  }
+
   // Status update methods
   async updateListingStatus(listingId: string, status: string) {
     const response = await this.client.put(`/farmer/listings/${listingId}/status`, { status });
@@ -608,6 +623,11 @@ class ApiService {
 
   async updateProcurementStatus(requestId: string, status: string) {
     const response = await this.client.put(`/buyer/procurement-requests/${requestId}/status`, { status });
+    return response.data;
+  }
+
+  async deleteProcurementRequest(requestId: string) {
+    const response = await this.client.delete(`/buyer/procurement-requests/${requestId}`);
     return response.data;
   }
 

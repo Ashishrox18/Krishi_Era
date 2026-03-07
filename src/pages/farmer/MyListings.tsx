@@ -8,7 +8,7 @@ const MyListings = () => {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
-  const [filter, setFilter] = useState<'all' | 'active' | 'finalized' | 'cancelled'>('all')
+  const [filter, setFilter] = useState<'active' | 'finalized' | 'cancelled'>('active')
 
   useEffect(() => {
     loadListings()
@@ -49,16 +49,40 @@ const MyListings = () => {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this listing?')) {
+    const listing = listings.find(l => l.id === id);
+    const isFinalized = listing && (listing.status === 'accepted' || listing.status === 'completed' || listing.status === 'awarded');
+    
+    console.log('Delete request for listing:', { id, listing, isFinalized, hasOfferId: !!listing?.offerId });
+    
+    const confirmMessage = isFinalized
+      ? 'Are you sure you want to cancel this finalized sale? This action cannot be undone and may affect your relationship with the buyer.'
+      : 'Are you sure you want to delete this listing?';
+    
+    if (!confirm(confirmMessage)) {
       return
     }
 
     try {
-      await apiService.deletePurchaseRequest(id)
+      // For finalized sales, we need to delete the offer, not the listing
+      // The listing object has an offerId field for finalized sales
+      if (isFinalized && listing?.offerId) {
+        console.log('Deleting finalized sale (offer):', listing.offerId);
+        await apiService.deleteOffer(listing.offerId);
+      } else if (isFinalized && !listing?.offerId) {
+        // Fallback: If finalized but no offerId, it means the listing was deleted
+        // We can't delete it, so just show a message
+        console.error('Cannot delete finalized sale: offer ID not found');
+        alert('This sale has already been finalized and cannot be cancelled from here. Please contact support if needed.');
+        return;
+      } else {
+        console.log('Deleting active listing:', id);
+        await apiService.deletePurchaseRequest(id);
+      }
       await loadListings()
+      alert(isFinalized ? 'Sale cancelled successfully' : 'Listing deleted successfully')
     } catch (error) {
       console.error('Failed to delete listing:', error)
-      alert('Failed to delete listing')
+      alert(isFinalized ? 'Failed to cancel sale' : 'Failed to delete listing')
     }
   }
 
@@ -73,18 +97,18 @@ const MyListings = () => {
 
   // Filter listings based on status
   const filteredListings = listings.filter(listing => {
-    if (filter === 'all') return true;
-    if (filter === 'active') return listing.status === 'open' || listing.status === 'negotiating';
+    if (filter === 'active') return listing.status === 'open' || listing.status === 'negotiating' || listing.status === 'in_progress';
     if (filter === 'finalized') return listing.status === 'accepted' || listing.status === 'completed' || listing.status === 'awarded';
-    if (filter === 'cancelled') return listing.status === 'cancelled' || listing.status === 'rejected';
+    if (filter === 'cancelled') return listing.status === 'cancelled';
     return true;
   });
 
   // Calculate stats
   const stats = {
     total: listings.length,
-    active: listings.filter(l => l.status === 'open' || l.status === 'negotiating').length,
+    active: listings.filter(l => l.status === 'open' || l.status === 'negotiating' || l.status === 'in_progress').length,
     finalized: listings.filter(l => l.status === 'accepted' || l.status === 'completed' || l.status === 'awarded').length,
+    cancelled: listings.filter(l => l.status === 'cancelled').length,
     totalRevenue: listings
       .filter(l => l.status === 'accepted' || l.status === 'completed' || l.status === 'awarded')
       .reduce((sum, l) => sum + ((l.finalPrice || l.currentBestOffer || l.minimumPrice) * l.quantity), 0)
@@ -145,16 +169,6 @@ const MyListings = () => {
       {/* Filter Tabs */}
       <div className="flex space-x-2 border-b border-gray-200">
         <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
-            filter === 'all'
-              ? 'border-green-600 text-green-600'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          All ({stats.total})
-        </button>
-        <button
           onClick={() => setFilter('active')}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
             filter === 'active'
@@ -182,7 +196,7 @@ const MyListings = () => {
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >
-          Cancelled
+          Cancelled ({stats.cancelled})
         </button>
       </div>
 
@@ -190,15 +204,12 @@ const MyListings = () => {
         <div className="card text-center py-12">
           <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {filter === 'all' ? 'No Listings Yet' : `No ${filter} listings`}
+            No {filter} listings
           </h3>
           <p className="text-gray-600 mb-6">
-            {filter === 'all' 
-              ? 'Start by listing your produce for sale'
-              : `You don't have any ${filter} listings at the moment`
-            }
+            You don't have any {filter} listings at the moment
           </p>
-          {filter === 'all' && (
+          {filter === 'active' && (
             <Link to="/farmer/harvest?tab=list-produce" className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
               List Produce
             </Link>
@@ -244,14 +255,43 @@ const MyListings = () => {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         listing.status === 'open' ? 'bg-blue-100 text-blue-800' :
                         listing.status === 'negotiating' ? 'bg-yellow-100 text-yellow-800' :
+                        listing.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                         isFinalized ? 'bg-green-100 text-green-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {listing.status === 'awarded' ? 'Sold' : listing.status}
+                        {listing.status === 'awarded' ? 'Sold' : 
+                         listing.status === 'cancelled' ? 'Cancelled' : 
+                         listing.status}
                       </span>
                       <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">Grade {listing.qualityGrade}</span>
                     </div>
                   </div>
+
+                  {/* Cancelled Sale Highlight */}
+                  {listing.status === 'cancelled' && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <X className="h-6 w-6 text-red-600" />
+                          <div>
+                            <p className="font-semibold text-red-900">Sale Cancelled</p>
+                            <p className="text-sm text-red-700">
+                              Cancelled by: {listing.cancelledBy === 'farmer' ? 'You' : listing.awardedBuyerName || 'Buyer'}
+                            </p>
+                            {listing.cancelledAt && (
+                              <p className="text-xs text-red-600 mt-1">
+                                on {new Date(listing.cancelledAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-red-700">Was Priced At</p>
+                          <p className="text-2xl font-bold text-red-600">₹{finalPrice}/{listing.quantityUnit}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Finalized Sale Highlight */}
                   {isFinalized && (
@@ -304,7 +344,20 @@ const MyListings = () => {
                   {!isFinalized && listing.currentBestOffer > 0 && <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4"><p className="text-sm font-medium text-blue-900">Best Offer: ₹{listing.currentBestOffer}/{listing.quantityUnit}</p></div>}
                   <div className="flex space-x-3">
                     <Link to={`/farmer/listing/${listing.id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"><Eye className="h-4 w-4 mr-2" />View Details</Link>
-                    {!isFinalized && (
+                    {listing.status === 'cancelled' ? (
+                      // Cancelled items: only show View Details (no edit/delete)
+                      null
+                    ) : isFinalized ? (
+                      // Finalized items: show Cancel Sale button
+                      <button 
+                        onClick={() => handleDelete(listing.id)} 
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel Sale
+                      </button>
+                    ) : (
+                      // Active items: show Edit and Delete buttons
                       <>
                         <button onClick={() => handleEdit(listing)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"><Edit2 className="h-4 w-4 mr-2" />Edit</button>
                         <button onClick={() => handleDelete(listing.id)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"><Trash2 className="h-4 w-4 mr-2" />Delete</button>

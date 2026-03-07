@@ -244,6 +244,10 @@ export class BuyerController {
         farmerId,
         buyerId: userId,
         buyerName: (req as any).user.name || 'Buyer',
+        cropType: listing.cropType, // Store crop details
+        variety: listing.variety,
+        qualityGrade: listing.qualityGrade,
+        pickupLocation: listing.pickupLocation,
         pricePerUnit,
         quantity,
         quantityUnit,
@@ -259,6 +263,23 @@ export class BuyerController {
       await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, offer);
 
       console.log('✅ Offer submitted successfully:', offer.id);
+
+      // Send notification to farmer
+      try {
+        const { NotificationsController } = await import('./notifications.controller');
+        await NotificationsController.createNotification({
+          userId: listing.farmerId,
+          title: 'New Offer Received',
+          message: `${offer.buyerName} offered ₹${pricePerUnit}/${quantityUnit} for your ${listing.cropType}`,
+          type: 'offer',
+          relatedId: listingId,
+          link: `/farmer/listing/${listingId}`
+        });
+        console.log('✅ Notification sent to farmer:', listing.farmerId);
+      } catch (notificationError) {
+        console.error('Failed to send notification:', notificationError);
+        // Don't fail the request if notifications fail
+      }
 
       // Update listing's quote count
       const currentQuotesCount = listing.quotesCount || 0;
@@ -501,11 +522,21 @@ export class BuyerController {
     try {
       const { id } = req.params;
       const { status } = req.body;
+      const userId = req.user!.id;
+
+      console.log('📝 Updating procurement status:', { id, status, userId });
 
       const request = await dynamoDBService.get(process.env.DYNAMODB_ORDERS_TABLE!, { id });
       
       if (!request) {
+        console.error('❌ Procurement request not found:', id);
         return res.status(404).json({ error: 'Procurement request not found' });
+      }
+
+      // Verify buyer owns this request
+      if (request.buyerId !== userId) {
+        console.error('❌ Unauthorized: User does not own this request');
+        return res.status(403).json({ error: 'Unauthorized' });
       }
 
       const updated = {
@@ -516,10 +547,42 @@ export class BuyerController {
 
       await dynamoDBService.put(process.env.DYNAMODB_ORDERS_TABLE!, updated);
 
+      console.log('✅ Procurement status updated successfully');
       res.json({ request: updated });
     } catch (error) {
       console.error('Update procurement status error:', error);
       res.status(500).json({ error: 'Failed to update procurement status' });
+    }
+  }
+
+  async deleteProcurementRequest(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      console.log('🗑️ Deleting procurement request:', { id, userId });
+
+      const request = await dynamoDBService.get(process.env.DYNAMODB_ORDERS_TABLE!, { id });
+      
+      if (!request) {
+        console.error('❌ Procurement request not found:', id);
+        return res.status(404).json({ error: 'Procurement request not found' });
+      }
+
+      // Verify buyer owns this request
+      if (request.buyerId !== userId) {
+        console.error('❌ Unauthorized: User does not own this request');
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      // Delete the request
+      await dynamoDBService.delete(process.env.DYNAMODB_ORDERS_TABLE!, { id });
+
+      console.log('✅ Procurement request deleted successfully');
+      res.json({ success: true, message: 'Procurement request deleted successfully' });
+    } catch (error) {
+      console.error('Delete procurement request error:', error);
+      res.status(500).json({ error: 'Failed to delete procurement request' });
     }
   }
 

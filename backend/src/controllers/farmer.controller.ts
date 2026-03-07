@@ -238,11 +238,14 @@ export class FarmerController {
           (harvestDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
         );
 
+        // Use status from database if it exists, otherwise calculate it
+        const status = crop.status || (daysRemaining <= 0 ? 'ready' : daysRemaining <= 30 ? 'upcoming' : 'growing');
+
         return {
           ...crop,
           harvestDate: harvestDate.toISOString(),
           daysRemaining,
-          status: daysRemaining <= 0 ? 'ready' : daysRemaining <= 30 ? 'upcoming' : 'growing',
+          status,
         };
       });
 
@@ -486,7 +489,8 @@ export class FarmerController {
         pickupLocation,
         availableFrom,
         availableTill,
-        description
+        description,
+        cropId // Accept cropId from request
       } = req.body;
 
       const purchaseRequest = {
@@ -503,6 +507,7 @@ export class FarmerController {
         availableFrom,
         availableTill: availableTill || '',
         description: description || '',
+        cropId: cropId || undefined, // Store cropId if provided
         status: 'released',
         currentBestOffer: 0,
         quotesCount: 0,
@@ -546,15 +551,127 @@ export class FarmerController {
       
       console.log(`📦 Total items in orders table: ${allItems.length}`);
       
-      // Filter for farmer's own listings (have farmerId matching current user AND type is farmer_listing)
-      const requests = allItems.filter((item: any) => 
-        item.farmerId === userId && item.type === 'farmer_listing'
+      // Get accepted/finalized offers for this farmer (these represent sold items)
+      const acceptedOffers = allItems.filter((item: any) => 
+        item.farmerId === userId && 
+        item.type === 'offer' && 
+        (item.status === 'accepted' || item.status === 'awarded')
       );
 
-      console.log(`✅ Found ${requests.length} farmer listings for user ${userId}`);
-      console.log(`📋 Listings:`, requests.map((r: any) => ({ id: r.id, cropType: r.cropType, status: r.status })));
+      // Get cancelled offers for this farmer
+      const cancelledOffers = allItems.filter((item: any) => 
+        item.farmerId === userId && 
+        item.type === 'offer' && 
+        item.status === 'cancelled'
+      );
+
+      // Get the listing IDs that have been sold (to exclude from active listings)
+      const soldListingIds = new Set(acceptedOffers.map((offer: any) => offer.listingId));
+
+      // Filter for farmer's own listings (have farmerId matching current user AND type is farmer_listing)
+      // Exclude listings that have been sold
+      const listings = allItems.filter((item: any) => 
+        item.farmerId === userId && 
+        item.type === 'farmer_listing' &&
+        !soldListingIds.has(item.id) // Exclude sold listings
+      );
+
+      console.log(`✅ Found ${listings.length} active farmer listings`);
+      console.log(`✅ Found ${acceptedOffers.length} finalized sales (accepted offers)`);
+      console.log(`✅ Found ${cancelledOffers.length} cancelled sales`);
+      console.log(`🚫 Excluded ${soldListingIds.size} sold listings from active list`);
+
+      // Convert accepted offers to listing format for display
+      const finalizedListings = acceptedOffers.map((offer: any) => {
+        // Try to find the original listing to get crop details
+        const originalListing = allItems.find((item: any) => 
+          item.id === offer.listingId && item.type === 'farmer_listing'
+        );
+
+        const finalizedListing = {
+          id: offer.listingId || offer.id, // Use listingId if available, otherwise offer id
+          offerId: offer.id, // IMPORTANT: This is the offer ID needed for deletion
+          farmerId: offer.farmerId,
+          cropType: originalListing?.cropType || offer.cropType || 'Sold Item',
+          variety: originalListing?.variety || offer.variety || '',
+          quantity: offer.quantity,
+          quantityUnit: offer.quantityUnit,
+          qualityGrade: originalListing?.qualityGrade || offer.qualityGrade || 'A',
+          minimumPrice: offer.pricePerUnit,
+          finalPrice: offer.pricePerUnit,
+          currentBestOffer: offer.pricePerUnit,
+          pickupLocation: originalListing?.pickupLocation || offer.pickupLocation || 'N/A',
+          availableFrom: originalListing?.availableFrom || offer.createdAt,
+          description: originalListing?.description || offer.message || '',
+          status: 'awarded', // Mark as awarded/finalized
+          awardedBuyerName: offer.buyerName,
+          awardedAt: offer.acceptedAt || offer.updatedAt,
+          quotesCount: 0,
+          type: 'farmer_listing',
+          createdAt: originalListing?.createdAt || offer.createdAt,
+          updatedAt: offer.updatedAt
+        };
+
+        console.log(`📦 Finalized listing created:`, { 
+          id: finalizedListing.id, 
+          offerId: finalizedListing.offerId,
+          cropType: finalizedListing.cropType,
+          status: finalizedListing.status
+        });
+
+        return finalizedListing;
+      });
+
+      // Convert cancelled offers to listing format for display
+      const cancelledListings = cancelledOffers.map((offer: any) => {
+        // Try to find the original listing to get crop details
+        const originalListing = allItems.find((item: any) => 
+          item.id === offer.listingId && item.type === 'farmer_listing'
+        );
+
+        const cancelledListing = {
+          id: offer.listingId || offer.id,
+          offerId: offer.id,
+          farmerId: offer.farmerId,
+          cropType: originalListing?.cropType || offer.cropType || 'Cancelled Item',
+          variety: originalListing?.variety || offer.variety || '',
+          quantity: offer.quantity,
+          quantityUnit: offer.quantityUnit,
+          qualityGrade: originalListing?.qualityGrade || offer.qualityGrade || 'A',
+          minimumPrice: offer.pricePerUnit,
+          finalPrice: offer.pricePerUnit,
+          currentBestOffer: offer.pricePerUnit,
+          pickupLocation: originalListing?.pickupLocation || offer.pickupLocation || 'N/A',
+          availableFrom: originalListing?.availableFrom || offer.createdAt,
+          description: originalListing?.description || offer.message || '',
+          status: 'cancelled',
+          awardedBuyerName: offer.buyerName,
+          awardedBuyerId: offer.buyerId,
+          cancelledBy: offer.cancelledBy,
+          cancelledAt: offer.cancelledAt,
+          quotesCount: 0,
+          type: 'farmer_listing',
+          createdAt: originalListing?.createdAt || offer.createdAt,
+          updatedAt: offer.updatedAt
+        };
+
+        console.log(`📦 Cancelled listing created:`, { 
+          id: cancelledListing.id, 
+          offerId: cancelledListing.offerId,
+          cropType: cancelledListing.cropType,
+          status: cancelledListing.status,
+          cancelledBy: cancelledListing.cancelledBy
+        });
+
+        return cancelledListing;
+      });
+
+      // Combine active listings, finalized sales, and cancelled sales
+      const allRequests = [...listings, ...finalizedListings, ...cancelledListings];
+
+      console.log(`📋 Total listings (active + finalized + cancelled): ${allRequests.length}`);
       
-      res.json({ requests });
+      res.json({ requests: allRequests });
     } catch (error) {
       console.error('Get purchase requests error:', error);
       res.status(500).json({ error: 'Failed to fetch purchase requests' });
@@ -633,18 +750,32 @@ export class FarmerController {
       const { listingId } = req.params;
       const userId = req.user!.id;
 
-      // Verify the listing belongs to this farmer
+      console.log(`📋 Fetching offers for listing: ${listingId}`);
+
+      // Try to get the listing
       const listing = await dynamoDBService.get(process.env.DYNAMODB_ORDERS_TABLE!, { id: listingId });
       
-      if (!listing || listing.farmerId !== userId) {
+      // Get all items to find offers
+      const allItems = await dynamoDBService.scan(process.env.DYNAMODB_ORDERS_TABLE!);
+      
+      // Get all offers for this listing
+      const offers = allItems.filter((item: any) => 
+        item.listingId === listingId && item.type === 'offer'
+      );
+
+      // If listing doesn't exist but offers do, verify farmer ownership through offers
+      if (!listing && offers.length > 0) {
+        const farmerOffer = offers.find((offer: any) => offer.farmerId === userId);
+        if (!farmerOffer) {
+          return res.status(404).json({ error: 'Listing not found' });
+        }
+      } else if (listing && listing.farmerId !== userId) {
+        // If listing exists, verify ownership
+        return res.status(404).json({ error: 'Listing not found' });
+      } else if (!listing && offers.length === 0) {
+        // No listing and no offers
         return res.status(404).json({ error: 'Listing not found' });
       }
-
-      // Get all offers for this listing
-      const allItems = await dynamoDBService.scan(process.env.DYNAMODB_ORDERS_TABLE!);
-      const offers = allItems.filter((item: any) => 
-        item.listingId === listingId && item.buyerId
-      );
 
       // Sort by price (highest first) and date
       offers.sort((a: any, b: any) => {
@@ -653,6 +784,8 @@ export class FarmerController {
         }
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
+
+      console.log(`✅ Found ${offers.length} offers for listing ${listingId}`);
 
       res.json({ offers });
     } catch (error) {
@@ -684,11 +817,55 @@ export class FarmerController {
   async getListing(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
+      const userId = req.user!.id;
       
-      const listing = await dynamoDBService.get(process.env.DYNAMODB_ORDERS_TABLE!, { id });
+      console.log(`📋 Fetching listing: ${id} for user: ${userId}`);
       
+      let listing = await dynamoDBService.get(process.env.DYNAMODB_ORDERS_TABLE!, { id });
+      
+      // If listing doesn't exist, try to reconstruct from accepted offer
       if (!listing) {
-        return res.status(404).json({ error: 'Listing not found' });
+        console.log(`⚠️ Listing not found, checking for accepted offers...`);
+        
+        // Get all items and find accepted offers for this listing ID
+        const allItems = await dynamoDBService.scan(process.env.DYNAMODB_ORDERS_TABLE!);
+        const acceptedOffer = allItems.find((item: any) => 
+          item.listingId === id && 
+          item.farmerId === userId &&
+          item.type === 'offer' && 
+          (item.status === 'accepted' || item.status === 'awarded')
+        );
+
+        if (acceptedOffer) {
+          console.log(`✅ Found accepted offer, reconstructing listing from offer`);
+          
+          // Reconstruct listing from offer
+          listing = {
+            id: acceptedOffer.listingId,
+            farmerId: acceptedOffer.farmerId,
+            cropType: acceptedOffer.cropType || 'Sold Item',
+            variety: acceptedOffer.variety || '',
+            quantity: acceptedOffer.quantity,
+            quantityUnit: acceptedOffer.quantityUnit,
+            qualityGrade: acceptedOffer.qualityGrade || 'A',
+            minimumPrice: acceptedOffer.pricePerUnit,
+            finalPrice: acceptedOffer.pricePerUnit,
+            currentBestOffer: acceptedOffer.pricePerUnit,
+            pickupLocation: acceptedOffer.pickupLocation || 'N/A',
+            availableFrom: acceptedOffer.createdAt,
+            description: acceptedOffer.message || '',
+            status: 'awarded',
+            awardedBuyerName: acceptedOffer.buyerName,
+            awardedBuyerId: acceptedOffer.buyerId,
+            awardedAt: acceptedOffer.acceptedAt || acceptedOffer.updatedAt,
+            type: 'farmer_listing',
+            createdAt: acceptedOffer.createdAt,
+            updatedAt: acceptedOffer.updatedAt
+          };
+        } else {
+          console.log(`❌ No listing or accepted offer found`);
+          return res.status(404).json({ error: 'Listing not found' });
+        }
       }
 
       res.json({ listing });

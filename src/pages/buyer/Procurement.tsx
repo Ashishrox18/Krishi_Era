@@ -299,45 +299,6 @@ const Procurement = () => {
           ))}
         </div>
       )}
-
-      {/* Quick Actions */}
-      <div className="card bg-gradient-to-r from-blue-50 to-purple-50">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Link
-            to="/buyer/create-procurement-request"
-            className="p-4 bg-white rounded-lg hover:shadow-md transition text-center"
-          >
-            <Plus className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-            <p className="font-semibold text-gray-900">Create Procurement Request</p>
-            <p className="text-sm text-gray-600">Tell farmers what you need</p>
-          </Link>
-          <Link
-            to="/warehouses"
-            className="p-4 bg-white rounded-lg hover:shadow-md transition text-center"
-          >
-            <Package className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-            <p className="font-semibold text-gray-900">Check Warehouse Availability</p>
-            <p className="text-sm text-gray-600">Find storage for your produce</p>
-          </Link>
-          <Link
-            to="/vehicles"
-            className="p-4 bg-white rounded-lg hover:shadow-md transition text-center"
-          >
-            <Truck className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-            <p className="font-semibold text-gray-900">Browse Transport Vehicles</p>
-            <p className="text-sm text-gray-600">Find vehicles for transportation</p>
-          </Link>
-          <Link
-            to="/my-vehicle-bookings"
-            className="p-4 bg-white rounded-lg hover:shadow-md transition text-center"
-          >
-            <Calendar className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
-            <p className="font-semibold text-gray-900">My Vehicle Bookings</p>
-            <p className="text-sm text-gray-600">Track your transport bookings</p>
-          </Link>
-        </div>
-      </div>
     </div>
   )
 }

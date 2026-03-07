@@ -17,25 +17,37 @@ const ListingDetail = () => {
 
   useEffect(() => {
     loadData()
-    updateStatusToInProgress()
+    // Don't update status automatically - let it stay as is
+    
+    // Poll for updates every 10 seconds
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing offers data...');
+      loadData()
+    }, 10000)
+    
+    return () => clearInterval(interval)
   }, [id])
-
-  const updateStatusToInProgress = async () => {
-    try {
-      await apiService.updateListingStatus(id!, 'in_progress')
-    } catch (error) {
-      console.error('Failed to update status:', error)
-    }
-  }
 
   const loadData = async () => {
     try {
+      console.log('🔄 Loading listing and offers data for ID:', id);
       const [listingRes, offersRes] = await Promise.all([
         apiService.getFarmerListing(id!),
         apiService.getOffersForListing(id!)
       ])
+      console.log('📋 Listing response:', listingRes);
+      console.log('📊 Offers response:', offersRes);
+      console.log('📊 Total offers found:', offersRes.offers?.length || 0);
+      
       setListing(listingRes.listing)
       setOffers(offersRes.offers || [])
+      
+      // Log each offer status
+      if (offersRes.offers && offersRes.offers.length > 0) {
+        offersRes.offers.forEach((offer: any, index: number) => {
+          console.log(`   Offer ${index + 1}: ${offer.buyerName} - ₹${offer.pricePerUnit} - Status: ${offer.status}`);
+        });
+      }
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -169,6 +181,130 @@ const ListingDetail = () => {
       {/* Status Workflow */}
       <StatusWorkflow currentStatus={listing.status || 'open'} type="listing" />
 
+      {/* Invoice Section - Only show for finalized sales */}
+      {listing.status === 'awarded' && (
+        <div className="card bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-200">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Sale Invoice</h2>
+            <div className="text-right">
+              <p className="text-sm text-gray-600">Invoice Date</p>
+              <p className="font-semibold text-gray-900">
+                {listing.awardedAt ? new Date(listing.awardedAt).toLocaleDateString() : new Date().toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Seller Details */}
+          <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase">Seller Details</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-600">Farmer ID</p>
+                <p className="font-medium text-gray-900">{listing.farmerId}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600">Pickup Location</p>
+                <p className="font-medium text-gray-900">{listing.pickupLocation}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Buyer Details */}
+          <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase">Buyer Details</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-600">Buyer Name</p>
+                <p className="font-medium text-gray-900">
+                  {listing.awardedBuyerName || offers.find(o => o.status === 'accepted')?.buyerName || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600">Buyer ID</p>
+                <p className="font-medium text-gray-900">
+                  {listing.awardedBuyerId || offers.find(o => o.status === 'accepted')?.buyerId || 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Product Details */}
+          <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase">Product Details</h3>
+            <table className="w-full">
+              <thead className="border-b border-gray-300">
+                <tr className="text-left">
+                  <th className="pb-2 text-xs font-semibold text-gray-700">Item</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-700 text-right">Quantity</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-700 text-right">Price/Unit</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-700 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-gray-200">
+                  <td className="py-3">
+                    <p className="font-medium text-gray-900">{listing.cropType}</p>
+                    {listing.variety && <p className="text-xs text-gray-600">Variety: {listing.variety}</p>}
+                    <p className="text-xs text-gray-600">Grade: {listing.qualityGrade}</p>
+                  </td>
+                  <td className="py-3 text-right font-medium text-gray-900">
+                    {listing.quantity} {listing.quantityUnit}
+                  </td>
+                  <td className="py-3 text-right font-medium text-gray-900">
+                    ₹{listing.finalPrice || listing.currentBestOffer || listing.minimumPrice}
+                  </td>
+                  <td className="py-3 text-right font-medium text-gray-900">
+                    ₹{((listing.finalPrice || listing.currentBestOffer || listing.minimumPrice) * listing.quantity).toLocaleString('en-IN')}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Total Amount */}
+          <div className="p-4 bg-green-100 rounded-lg border-2 border-green-300">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Subtotal</span>
+              <span className="font-semibold text-gray-900">
+                ₹{((listing.finalPrice || listing.currentBestOffer || listing.minimumPrice) * listing.quantity).toLocaleString('en-IN')}
+              </span>
+            </div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Tax (0%)</span>
+              <span className="font-semibold text-gray-900">₹0</span>
+            </div>
+            <div className="border-t-2 border-green-300 pt-2 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-lg font-bold text-gray-900">Total Amount</span>
+                <span className="text-2xl font-bold text-green-600">
+                  ₹{((listing.finalPrice || listing.currentBestOffer || listing.minimumPrice) * listing.quantity).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Terms */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 className="text-sm font-semibold text-blue-900 mb-2">Payment Terms</h3>
+            <ul className="text-xs text-blue-700 space-y-1">
+              <li>• Payment to be made upon delivery or as per agreed terms</li>
+              <li>• Quality inspection will be done at pickup location</li>
+              <li>• Any disputes to be resolved within 7 days of delivery</li>
+            </ul>
+          </div>
+
+          {/* Print Button */}
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={() => window.print()}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+            >
+              Print Invoice
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Offers Section */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
@@ -199,10 +335,11 @@ const ListingDetail = () => {
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                     offer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                     offer.status === 'countered' ? 'bg-orange-100 text-orange-800' :
+                    offer.status === 'proposed_award' ? 'bg-purple-100 text-purple-800' :
                     offer.status === 'accepted' ? 'bg-green-100 text-green-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
-                    {offer.status.toUpperCase()}
+                    {offer.status === 'proposed_award' ? 'PURCHASE PROPOSED' : offer.status.toUpperCase()}
                   </span>
                 </div>
 
@@ -266,15 +403,24 @@ const ListingDetail = () => {
                       className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center justify-center"
                     >
                       <MessageSquare className="h-4 w-4 mr-2" />
-                      Counter Offer
+                      {offer.status === 'proposed_award' ? 'Negotiate Price' : 'Counter Offer'}
                     </button>
                     <button
                       onClick={() => handleAcceptOffer(offer.id)}
                       className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center"
                     >
                       <Award className="h-4 w-4 mr-2" />
-                      Accept Offer
+                      {offer.status === 'proposed_award' ? 'Accept & Finalize' : 'Accept Offer'}
                     </button>
+                  </div>
+                )}
+
+                {offer.status === 'proposed_award' && (
+                  <div className="mt-3 p-3 bg-purple-50 rounded border border-purple-200">
+                    <p className="text-sm font-medium text-purple-900">🎯 Buyer wants to purchase!</p>
+                    <p className="text-xs text-purple-700 mt-1">
+                      The buyer is ready to proceed with this offer. Accept to finalize the deal or negotiate for a better price.
+                    </p>
                   </div>
                 )}
 

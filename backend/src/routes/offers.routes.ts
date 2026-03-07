@@ -17,10 +17,19 @@ router.get('/listing/:listingId', authenticate, controller.getOffersForListing);
 // Update offer (buyer)
 router.put('/:offerId', authenticate, controller.updateOffer);
 
-// Accept offer (farmer)
-router.post('/:offerId/accept', authenticate, controller.acceptOffer);
+// Buyer proposes award/purchase (sends to farmer for approval)
+router.post('/:offerId/propose-award', authenticate, controller.proposeAward);
+
+// Farmer accepts the award proposal (finalizes deal)
+router.post('/:offerId/accept-award', authenticate, controller.acceptAward);
+
+// Buyer confirms the farmer's acceptance (finalizes deal)
+router.post('/:offerId/confirm-acceptance', authenticate, controller.confirmAcceptedOffer);
 
 // Counter offer (farmer)
 router.post('/:offerId/counter', authenticate, controller.counterOffer);
+
+// Delete offer (for cancelling sales)
+router.delete('/:offerId', authenticate, controller.deleteOffer);
 
 export default router;

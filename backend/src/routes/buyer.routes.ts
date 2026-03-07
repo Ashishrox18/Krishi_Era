@@ -31,6 +31,7 @@ router.get('/price-trends', authenticate, controller.getPriceTrends);
 
 // Procurement status and negotiation
 router.put('/procurement-requests/:id/status', authenticate, controller.updateProcurementStatus);
+router.delete('/procurement-requests/:id', authenticate, controller.deleteProcurementRequest);
 router.put('/procurement-requests/:id/negotiate', authenticate, controller.negotiateProcurement);
 
 export default router;

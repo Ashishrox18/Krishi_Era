@@ -51,18 +51,20 @@ const MyProcurementRequests = () => {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to close this procurement request?')) {
+    if (!confirm('Are you sure you want to delete this procurement request? This action cannot be undone.')) {
       return
     }
 
     try {
-      // Update status to closed instead of deleting
-      await apiService.updateProcurementStatus(id, 'closed')
+      console.log('Deleting procurement request:', id);
+      const response = await apiService.deleteProcurementRequest(id)
+      console.log('Delete response:', response);
       await loadRequests()
-      alert('Procurement request closed successfully!')
-    } catch (error) {
-      console.error('Failed to close procurement request:', error)
-      alert('Failed to close procurement request')
+      alert('Procurement request deleted successfully!')
+    } catch (error: any) {
+      console.error('Failed to delete procurement request:', error);
+      console.error('Error details:', error.response?.data);
+      alert(error.response?.data?.error || 'Failed to delete procurement request')
     }
   }
 
@@ -292,7 +294,7 @@ const MyProcurementRequests = () => {
                       className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Close Request
+                      Delete
                     </button>
                   </div>
                 </div>

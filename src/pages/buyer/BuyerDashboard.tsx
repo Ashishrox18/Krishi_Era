@@ -1,6 +1,6 @@
-import { ShoppingCart, Package, TrendingUp, Clock, Plus, List } from 'lucide-react'
+import { ShoppingCart, Package, TrendingUp, Clock, Plus, List, Lightbulb, FileText, Warehouse, Truck, MapPin, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState, useEffect } from 'react'
 import { apiService } from '../../services/api'
 
@@ -11,6 +11,8 @@ const BuyerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [loadingOffers, setLoadingOffers] = useState(true);
   const [priceData, setPriceData] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [finalizedPurchases, setFinalizedPurchases] = useState<any[]>([]);
 
   useEffect(() => {
     // Get user from localStorage
@@ -21,7 +23,38 @@ const BuyerDashboard = () => {
     
     loadDashboardData();
     loadMyOffers();
+    loadFinalizedPurchases();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      loadMyOffers();
+      loadDashboardData();
+      loadFinalizedPurchases();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadDashboardData(), loadMyOffers(), loadFinalizedPurchases()]);
+    setRefreshing(false);
+  };
+
+  const loadFinalizedPurchases = async () => {
+    try {
+      // Get all buyer's offers
+      const response = await apiService.getMyOffers();
+      const offers = response.offers || [];
+      
+      // Filter for finalized purchases (accepted offers)
+      const finalized = offers.filter((offer: any) => offer.status === 'accepted');
+      
+      setFinalizedPurchases(finalized);
+    } catch (error) {
+      console.error('Failed to load finalized purchases:', error);
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -47,10 +80,28 @@ const BuyerDashboard = () => {
   };
 
   const loadMyOffers = async () => {
+    setLoadingOffers(true);
     try {
       const response = await apiService.getMyOffers();
       console.log('📦 Loaded buyer offers:', response.offers?.length || 0);
-      setMyOffers(response.offers || []);
+      
+      // Enrich offers with listing details if available
+      const enrichedOffers = await Promise.all(
+        (response.offers || []).map(async (offer: any) => {
+          try {
+            if (offer.listingId && !offer.listing) {
+              const listingRes = await apiService.getFarmerListing(offer.listingId);
+              return { ...offer, listing: listingRes.listing };
+            }
+            return offer;
+          } catch (error) {
+            console.error('Failed to load listing for offer:', offer.id);
+            return offer;
+          }
+        })
+      );
+      
+      setMyOffers(enrichedOffers);
     } catch (error) {
       console.error('Failed to load offers:', error);
     } finally {
@@ -62,75 +113,42 @@ const BuyerDashboard = () => {
   const activeOrders = procurementRequests.filter(r => 
     r.status === 'in_progress' || r.status === 'negotiating' || r.status === 'accepted'
   );
-  const totalVolume = procurementRequests.reduce((sum, r) => sum + (r.quantity || 0), 0);
-  const totalValue = procurementRequests.reduce((sum, r) => 
-    sum + ((r.quantity || 0) * (r.targetPrice || 0)), 0
-  );
+  
+  // Calculate total value and volume from finalized purchases (accepted offers)
+  const totalPurchasedValue = finalizedPurchases.reduce((sum, purchase) => {
+    const quantity = purchase.quantity || 0;
+    const price = purchase.pricePerUnit || 0;
+    return sum + (quantity * price);
+  }, 0);
+  
+  const totalPurchasedVolume = finalizedPurchases.reduce((sum, purchase) => {
+    return sum + (purchase.quantity || 0);
+  }, 0);
+  
+  // Get the most common unit from finalized purchases
+  const volumeUnit = finalizedPurchases.length > 0 
+    ? (finalizedPurchases[0]?.quantityUnit || 'quintals')
+    : 'quintals';
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Buyer Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back, {user?.name || 'Buyer'}! Manage your procurement and orders</p>
+          <p className="text-gray-600 mt-1">Welcome back, {user?.name || 'Buyer'}</p>
         </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+        </button>
       </div>
 
-      {/* Quick Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Link
-          to="/buyer/create-procurement-request"
-          className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Float a Tender</h3>
-              <p className="text-blue-100 text-sm">Create a procurement request and receive competitive quotes from farmers</p>
-            </div>
-            <Plus className="h-12 w-12 opacity-80" />
-          </div>
-        </Link>
-
-        <Link
-          to="/buyer/procurement"
-          className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Browse Farmer Listings</h3>
-              <p className="text-green-100 text-sm">View available produce from farmers and place orders directly</p>
-            </div>
-            <List className="h-12 w-12 opacity-80" />
-          </div>
-        </Link>
-
-        <Link
-          to="/buyer/my-procurement-requests"
-          className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white hover:from-purple-600 hover:to-purple-700 transition-all transform hover:scale-105"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">My Procurement Requests</h3>
-              <p className="text-purple-100 text-sm">View and manage your procurement requests and quotes</p>
-            </div>
-            <Package className="h-12 w-12 opacity-80" />
-          </div>
-        </Link>
-
-        <Link
-          to="/invoices"
-          className="bg-gradient-to-r from-gray-500 to-gray-600 rounded-lg shadow-lg p-6 text-white hover:from-gray-600 hover:to-gray-700 transition-all transform hover:scale-105"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">View Invoices</h3>
-              <p className="text-gray-100 text-sm">Manage your invoices and payment records</p>
-            </div>
-            <ShoppingCart className="h-12 w-12 opacity-80" />
-          </div>
-        </Link>
-      </div>
-
+      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="card">
           <div className="flex items-center justify-between">
@@ -144,8 +162,8 @@ const BuyerDashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Value</p>
-              <p className="text-2xl font-bold text-gray-900">₹{(totalValue / 100000).toFixed(1)}L</p>
+              <p className="text-sm text-gray-600">Total Value Purchased</p>
+              <p className="text-2xl font-bold text-green-600">₹{totalPurchasedValue.toLocaleString('en-IN')}</p>
             </div>
             <TrendingUp className="h-8 w-8 text-green-600" />
           </div>
@@ -153,8 +171,8 @@ const BuyerDashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Volume</p>
-              <p className="text-2xl font-bold text-gray-900">{totalVolume.toFixed(0)} {procurementRequests[0]?.quantityUnit || 'quintals'}</p>
+              <p className="text-sm text-gray-600">Total Volume Purchased</p>
+              <p className="text-2xl font-bold text-purple-600">{totalPurchasedVolume.toFixed(1)} {volumeUnit}</p>
             </div>
             <Package className="h-8 w-8 text-purple-600" />
           </div>
@@ -162,159 +180,291 @@ const BuyerDashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Requests</p>
-              <p className="text-2xl font-bold text-gray-900">{procurementRequests.length}</p>
+              <p className="text-sm text-gray-600">Completed Purchases</p>
+              <p className="text-2xl font-bold text-gray-900">{finalizedPurchases.length}</p>
             </div>
             <Clock className="h-8 w-8 text-orange-600" />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Price Trends</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={priceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="rice" fill="#22c55e" />
-                <Bar dataKey="wheat" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Procurement Requests</h2>
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-600 mt-2 text-sm">Loading requests...</p>
-            </div>
-          ) : activeOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600 mb-3">No active requests</p>
-              <Link
-                to="/buyer/create-procurement-request"
-                className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
-              >
-                Create Your First Request
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column - Requests and Offers */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Recent Procurement Requests */}
+          <div className="card">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Recent Procurement Requests</h2>
+              <Link to="/buyer/my-procurement-requests" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                View All
               </Link>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {activeOrders.slice(0, 3).map((request) => (
-                <div key={request.id} className="p-4 bg-gray-50 rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-semibold text-gray-900">{request.cropType}</p>
-                      <p className="text-sm text-gray-600">{request.quantity} {request.quantityUnit}</p>
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2 text-sm">Loading requests...</p>
+              </div>
+            ) : activeOrders.length === 0 ? (
+              <div className="text-center py-8">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600 mb-3">No active requests</p>
+                <Link
+                  to="/buyer/create-procurement-request"
+                  className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                >
+                  Create Your First Request
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeOrders.slice(0, 3).map((request) => (
+                  <div key={request.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Package className="h-6 w-6 text-blue-600" />
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      request.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                      request.status === 'negotiating' ? 'bg-yellow-100 text-yellow-800' :
-                      request.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {request.status}
-                    </span>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900">{request.cropType}</h3>
+                      <p className="text-sm text-gray-600">{request.quantity} {request.quantityUnit} • {request.status}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">₹{request.targetPrice}/{request.quantityUnit}</p>
+                      <p className="text-xs text-gray-500">{request.quotesCount || 0} quotes</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <p className="text-gray-600">Target: ₹{request.targetPrice}/{request.quantityUnit}</p>
-                    <p className="text-gray-900 font-medium">{request.quotesCount || 0} quotes</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* My Offers Section */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">My Offers on Farmer Listings</h2>
-          <Link to="/buyer/procurement" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-            Browse Listings →
-          </Link>
-        </div>
-
-        {loadingOffers ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2 text-sm">Loading offers...</p>
+                ))}
+              </div>
+            )}
           </div>
-        ) : myOffers.length === 0 ? (
-          <div className="text-center py-8">
-            <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 mb-3">No offers submitted yet</p>
-            <Link
-              to="/buyer/procurement"
-              className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
-            >
-              Browse Farmer Listings
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {myOffers.slice(0, 5).map((offer) => (
-              <Link
-                key={offer.id}
-                to={`/buyer/farmer-listing/${offer.listingId}`}
-                className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition border border-gray-200 hover:border-blue-300"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      {offer.listing?.cropType || 'Unknown Crop'}
-                      {offer.listing?.variety && ` (${offer.listing.variety})`}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Submitted {new Date(offer.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    offer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    offer.status === 'countered' ? 'bg-orange-100 text-orange-800' :
-                    offer.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {offer.status.toUpperCase()}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-gray-600">Your Offer</p>
-                    <p className="font-medium text-blue-600">₹{offer.pricePerUnit}/{offer.quantityUnit}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Quantity</p>
-                    <p className="font-medium text-gray-900">{offer.quantity} {offer.quantityUnit}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Total</p>
-                    <p className="font-medium text-gray-900">₹{(offer.pricePerUnit * offer.quantity).toLocaleString()}</p>
-                  </div>
-                </div>
 
-                {offer.negotiationHistory && offer.negotiationHistory.length > 0 && (
-                  <div className="mt-2 text-xs text-orange-600">
-                    🔄 {offer.negotiationHistory.length} counter offer(s) from farmer
-                  </div>
-                )}
+          {/* My Offers Section */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">My Offers on Farmer Listings</h2>
+              <Link to="/buyer/procurement" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                Browse Listings
               </Link>
-            ))}
+            </div>
+
+            {loadingOffers ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2 text-sm">Loading offers...</p>
+              </div>
+            ) : myOffers.length === 0 ? (
+              <div className="text-center py-8">
+                <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600 mb-3">No offers submitted yet</p>
+                <Link
+                  to="/buyer/procurement"
+                  className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                >
+                  Browse Farmer Listings
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {myOffers.slice(0, 3).map((offer) => (
+                  <Link
+                    key={offer.id}
+                    to={`/buyer/farmer-listing/${offer.listingId}`}
+                    className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition border border-gray-200 hover:border-blue-300"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {offer.listing?.cropType || 'Unknown Crop'}
+                          {offer.listing?.variety && ` (${offer.listing.variety})`}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {offer.quantity} {offer.quantityUnit} • ₹{offer.pricePerUnit}/{offer.quantityUnit}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        offer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        offer.status === 'countered' ? 'bg-orange-100 text-orange-800' :
+                        offer.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {offer.status.toUpperCase()}
+                      </span>
+                    </div>
+                    
+                    {offer.negotiationHistory && offer.negotiationHistory.length > 0 && (
+                      <div className="text-xs text-orange-600">
+                        🔄 {offer.negotiationHistory.length} counter offer(s) from farmer
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Procurement Tips */}
+          <div className="card">
+            <div className="flex items-center space-x-2 mb-4">
+              <Lightbulb className="h-6 w-6 text-orange-500" />
+              <h2 className="text-xl font-semibold text-gray-900">Procurement Tips</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div className="border-l-4 border-blue-500 bg-blue-50 p-4 rounded-r-lg">
+                <div className="flex items-start space-x-3">
+                  <TrendingUp className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1">Monitor Market Prices</h3>
+                    <p className="text-sm text-gray-700">
+                      Keep track of market trends to make informed purchasing decisions. Compare prices across regions for better deals.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-l-4 border-green-500 bg-green-50 p-4 rounded-r-lg">
+                <div className="flex items-start space-x-3">
+                  <Package className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1">Quality Inspection</h3>
+                    <p className="text-sm text-gray-700">
+                      Always inspect produce quality before finalizing purchases. Request samples and verify certifications.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-l-4 border-purple-500 bg-purple-50 p-4 rounded-r-lg">
+                <div className="flex items-start space-x-3">
+                  <Warehouse className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1">Storage Planning</h3>
+                    <p className="text-sm text-gray-700">
+                      Plan storage capacity before bulk purchases. Consider temperature and humidity requirements for different crops.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-gray-200 bg-gray-50 p-4 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <FileText className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1">Contract Farming Benefits</h3>
+                    <p className="text-sm text-gray-700 mb-2">
+                      Consider contract farming for consistent supply. Build long-term relationships with reliable farmers for better pricing.
+                    </p>
+                    <p className="text-xs text-gray-500">Updated 3 days ago</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column - Price Trends and Quick Actions */}
+        <div className="space-y-6">
+          {/* Price Trends Widget */}
+          <div className="card">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Price Trends</h2>
+              <div className="flex items-center text-xs text-gray-500">
+                <MapPin className="h-3 w-3 mr-1" />
+                <span>Last 6 months</span>
+              </div>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={priceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="rice" stroke="#22c55e" strokeWidth={2} />
+                  <Line type="monotone" dataKey="wheat" stroke="#3b82f6" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center space-x-4 mt-4 text-xs">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+                <span className="text-gray-600">Rice</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+                <span className="text-gray-600">Wheat</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="card">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <div className="space-y-3">
+              {/* Primary Actions */}
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  to="/buyer/create-procurement-request"
+                  className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg hover:shadow-lg transition text-center"
+                >
+                  <Plus className="h-6 w-6 mx-auto mb-1" />
+                  <p className="text-sm font-semibold">Float Tender</p>
+                </Link>
+                <Link
+                  to="/buyer/procurement"
+                  className="p-3 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg hover:shadow-lg transition text-center"
+                >
+                  <List className="h-6 w-6 mx-auto mb-1" />
+                  <p className="text-sm font-semibold">Browse Listings</p>
+                </Link>
+              </div>
+
+              {/* Secondary Actions */}
+              <div className="space-y-2">
+                <Link
+                  to="/buyer/my-procurement-requests"
+                  className="flex items-center p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition group"
+                >
+                  <div className="w-10 h-10 bg-purple-100 group-hover:bg-purple-200 rounded-lg flex items-center justify-center mr-3">
+                    <Package className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm">My Requests</p>
+                    <p className="text-xs text-gray-600">Manage procurement</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/warehouses"
+                  className="flex items-center p-3 bg-amber-50 hover:bg-amber-100 rounded-lg transition group"
+                >
+                  <div className="w-10 h-10 bg-amber-100 group-hover:bg-amber-200 rounded-lg flex items-center justify-center mr-3">
+                    <Warehouse className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm">Warehouses</p>
+                    <p className="text-xs text-gray-600">Find storage</p>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/vehicles"
+                  className="flex items-center p-3 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition group"
+                >
+                  <div className="w-10 h-10 bg-indigo-100 group-hover:bg-indigo-200 rounded-lg flex items-center justify-center mr-3">
+                    <Truck className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm">Vehicles</p>
+                    <p className="text-xs text-gray-600">Book transport</p>
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
 export default BuyerDashboard
-

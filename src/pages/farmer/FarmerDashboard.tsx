@@ -18,6 +18,7 @@ const FarmerDashboard = () => {
   const [loadingWeather, setLoadingWeather] = useState(true);
   const [cropTips, setCropTips] = useState<{[key: string]: string}>({});
   const [loadingTips, setLoadingTips] = useState(false);
+  const [soldCrops, setSoldCrops] = useState<any[]>([]);
 
   useEffect(() => {
     // Get user from localStorage
@@ -28,6 +29,30 @@ const FarmerDashboard = () => {
     
     loadCrops();
     loadWeather();
+    loadSoldCrops();
+  }, []);
+
+  const loadSoldCrops = async () => {
+    try {
+      // Fetch farmer's listings which includes finalized sales
+      const response = await apiService.getMyPurchaseRequests();
+      const listings = response.requests || [];
+      
+      // Filter for finalized/awarded listings (these are sold items)
+      const finalizedListings = listings.filter((listing: any) => 
+        listing.status === 'awarded' && listing.finalPrice
+      );
+      
+      setSoldCrops(finalizedListings);
+    } catch (error) {
+      console.error('Failed to fetch sold crops:', error);
+    }
+  };
+
+  // Auto-refresh sold crops every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(loadSoldCrops, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Load AI tips when crops change
@@ -38,7 +63,7 @@ const FarmerDashboard = () => {
   }, [crops, loadingCrops]);
 
   const loadCropTips = async () => {
-    const activeCropsFiltered = crops.filter(c => c.status !== 'ready' && c.status !== 'listed');
+    const activeCropsFiltered = crops.filter(c => c.status !== 'ready' && c.status !== 'listed' && c.status !== 'sold');
     if (activeCropsFiltered.length === 0) return;
 
     setLoadingTips(true);
@@ -230,17 +255,19 @@ const FarmerDashboard = () => {
     { day: 'Sun', temp: 32, rainfall: 0 },
   ]
 
-  // Calculate stats from real data (excluding harvest ready and listed crops)
-  const activeCropsFiltered = crops.filter(c => c.status !== 'ready' && c.status !== 'listed');
+  // Calculate stats from real data (excluding harvest ready, listed, and sold crops)
+  const activeCropsFiltered = crops.filter(c => c.status !== 'ready' && c.status !== 'listed' && c.status !== 'sold');
   
   const totalLand = activeCropsFiltered.reduce((sum, crop) => sum + (parseFloat(crop.area) || 0), 0);
   const activeCrops = activeCropsFiltered.length;
   const expectedYield = activeCropsFiltered.reduce((sum, crop) => sum + (crop.expectedYield || 0), 0);
   
-  // Calculate actual revenue from sold crops only (crops with status 'sold' and actualRevenue)
-  const actualRevenue = crops
-    .filter(c => c.status === 'sold' && c.actualRevenue)
-    .reduce((sum, crop) => sum + (crop.actualRevenue || 0), 0);
+  // Calculate actual revenue from sold crops (finalized sales)
+  const actualRevenue = soldCrops.reduce((sum, crop) => {
+    const quantity = crop.quantity || 0;
+    const price = crop.finalPrice || crop.currentBestOffer || 0;
+    return sum + (quantity * price);
+  }, 0);
 
   return (
     <div className="space-y-6">
@@ -283,9 +310,9 @@ const FarmerDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">{t('dashboard.totalRevenue')}</p>
-              <p className="text-2xl font-bold text-gray-900">₹{(actualRevenue / 100000).toFixed(1)}L</p>
+              <p className="text-2xl font-bold text-green-600">₹{actualRevenue.toLocaleString('en-IN')}</p>
             </div>
-            <TrendingUp className="h-8 w-8 text-orange-600" />
+            <TrendingUp className="h-8 w-8 text-green-600" />
           </div>
         </div>
       </div>
@@ -307,7 +334,7 @@ const FarmerDashboard = () => {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
                 <p className="text-gray-600 mt-2 text-sm">{t('common.loading')}</p>
               </div>
-            ) : crops.filter(crop => crop.status !== 'ready' && crop.status !== 'listed').length === 0 ? (
+            ) : crops.filter(crop => crop.status !== 'ready' && crop.status !== 'listed' && crop.status !== 'sold').length === 0 ? (
               <div className="text-center py-8">
                 <Sprout className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-600 mb-3">
@@ -322,7 +349,7 @@ const FarmerDashboard = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {crops.filter(crop => crop.status !== 'ready' && crop.status !== 'listed').slice(0, 3).map((crop) => (
+                {crops.filter(crop => crop.status !== 'ready' && crop.status !== 'listed' && crop.status !== 'sold').slice(0, 3).map((crop) => (
                   <div key={crop.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
                     <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
                       <Sprout className="h-6 w-6 text-primary-600" />

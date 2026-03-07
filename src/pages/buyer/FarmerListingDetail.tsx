@@ -18,33 +18,57 @@ const FarmerListingDetail = () => {
 
   useEffect(() => {
     loadData()
-    updateStatusToInProgress()
-  }, [id])
+    // Don't update status automatically - let it stay as is
+    
+    // Poll for updates every 10 seconds, but don't clear form if modal is open
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing offer data...');
+      if (!showOfferModal) {
+        loadData()
+      } else {
+        console.log('⏸️ Skipping auto-refresh - modal is open');
+      }
+    }, 10000)
+    
+    return () => clearInterval(interval)
+  }, [id, showOfferModal])
 
-  const updateStatusToInProgress = async () => {
+  const loadData = async (preserveFormValues = false) => {
     try {
-      await apiService.updateListingStatus(id!, 'in_progress')
-    } catch (error) {
-      console.error('Failed to update status:', error)
-    }
-  }
-
-  const loadData = async () => {
-    try {
+      console.log('🔄 Loading listing data for ID:', id);
       const listingRes = await apiService.getFarmerListing(id!)
+      console.log('📋 Listing response:', listingRes);
       setListing(listingRes.listing)
       
       // Check if buyer has already made an offer
+      console.log('🔍 Loading offers for listing:', id);
       const offersRes = await apiService.getOffersForListing(id!)
+      console.log('📊 Offers response:', offersRes);
+      console.log('📊 Total offers found:', offersRes.offers?.length || 0);
+      
       const userStr = sessionStorage.getItem('user')
       if (userStr) {
         const user = JSON.parse(userStr)
+        console.log('👤 Current user ID:', user.id);
         const existingOffer = offersRes.offers?.find((o: any) => o.buyerId === user.id)
+        console.log('💼 Existing offer found:', existingOffer);
+        
         if (existingOffer) {
+          console.log('✅ Setting myOffer with negotiation history:', existingOffer.negotiationHistory);
           setMyOffer(existingOffer)
-          setOfferPrice(existingOffer.pricePerUnit.toString())
-          setOfferQuantity(existingOffer.quantity.toString())
-          setOfferMessage(existingOffer.message || '')
+          // Only update form values if not preserving them (i.e., not just after submission)
+          if (!preserveFormValues) {
+            setOfferPrice(existingOffer.pricePerUnit.toString())
+            setOfferQuantity(existingOffer.quantity.toString())
+            setOfferMessage(existingOffer.message || '')
+          }
+        } else if (!preserveFormValues) {
+          // Clear offer state if no offer exists and not preserving values
+          console.log('❌ No existing offer found, clearing state');
+          setMyOffer(null)
+          setOfferPrice('')
+          setOfferQuantity('')
+          setOfferMessage('')
         }
       }
     } catch (error) {
@@ -61,14 +85,23 @@ const FarmerListingDetail = () => {
     }
 
     try {
+      console.log('Submitting offer:', { 
+        isCountering, 
+        offerId: myOffer?.id,
+        pricePerUnit: parseFloat(offerPrice),
+        quantity: parseFloat(offerQuantity),
+        message: offerMessage
+      });
+
       if (isCountering && myOffer) {
-        await apiService.updateOffer(myOffer.id, {
+        const response = await apiService.updateOffer(myOffer.id, {
           pricePerUnit: parseFloat(offerPrice),
           quantity: parseFloat(offerQuantity),
           message: offerMessage
         })
+        console.log('Update offer response:', response);
       } else {
-        await apiService.submitOffer({
+        const response = await apiService.submitOffer({
           listingId: id,
           farmerId: listing.farmerId,
           pricePerUnit: parseFloat(offerPrice),
@@ -76,15 +109,22 @@ const FarmerListingDetail = () => {
           quantityUnit: listing.quantityUnit,
           message: offerMessage
         })
+        console.log('Submit offer response:', response);
       }
       
       setShowOfferModal(false)
       setIsCountering(false)
-      await loadData()
+      
       alert(isCountering ? 'Offer updated successfully!' : 'Offer submitted successfully!')
-    } catch (error) {
-      console.error('Failed to submit offer:', error)
-      alert('Failed to submit offer')
+      
+      // Wait a moment for the backend to save, then reload
+      setTimeout(async () => {
+        console.log('Reloading data after offer submission...');
+        await loadData()
+      }, 1000)
+    } catch (error: any) {
+      console.error('Failed to submit offer:', error);
+      alert(error.response?.data?.error || 'Failed to submit offer')
     }
   }
 
@@ -94,25 +134,26 @@ const FarmerListingDetail = () => {
       return
     }
 
-    if (!confirm('Are you sure you want to award this listing? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to propose this purchase? The farmer will need to accept before the deal is finalized.')) {
       return
     }
 
     try {
-      await apiService.acceptOffer(myOffer.id)
+      await apiService.proposeAward(myOffer.id)
       await loadData()
-      alert('Listing awarded successfully!')
+      alert('Purchase proposal sent to farmer! Waiting for their approval.')
     } catch (error) {
-      console.error('Failed to award listing:', error)
-      alert('Failed to award listing')
+      console.error('Failed to propose award:', error)
+      alert('Failed to send purchase proposal')
     }
   }
 
   const openOfferModal = (countering = false) => {
     setIsCountering(countering)
+    // Always start with empty form - let user enter their own values
     if (!countering) {
-      setOfferPrice(listing?.minimumPrice?.toString() || '')
-      setOfferQuantity(listing?.quantity?.toString() || '')
+      setOfferPrice('')
+      setOfferQuantity('')
       setOfferMessage('')
     }
     setShowOfferModal(true)
@@ -238,10 +279,14 @@ const FarmerListingDetail = () => {
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${
               myOffer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
               myOffer.status === 'countered' ? 'bg-orange-100 text-orange-800' :
+              myOffer.status === 'proposed_award' ? 'bg-purple-100 text-purple-800' :
+              myOffer.status === 'farmer_accepted' ? 'bg-green-100 text-green-800' :
               myOffer.status === 'accepted' ? 'bg-green-100 text-green-800' :
               'bg-gray-100 text-gray-800'
             }`}>
-              {myOffer.status.toUpperCase()}
+              {myOffer.status === 'proposed_award' ? 'AWAITING FARMER APPROVAL' : 
+               myOffer.status === 'farmer_accepted' ? 'FARMER ACCEPTED - CONFIRM NOW' :
+               myOffer.status.toUpperCase()}
             </span>
           </div>
 
@@ -269,18 +314,36 @@ const FarmerListingDetail = () => {
           {/* Counter Offers from Farmer */}
           {myOffer.negotiationHistory && myOffer.negotiationHistory.length > 0 && (
             <div className="mb-4 p-4 bg-orange-50 rounded border border-orange-200">
-              <p className="text-sm font-medium text-orange-900 mb-2">Farmer Counter Offers:</p>
+              <p className="text-sm font-medium text-orange-900 mb-2">
+                🔔 Farmer Counter Offers ({myOffer.negotiationHistory.length}):
+              </p>
               {myOffer.negotiationHistory.map((item: any, idx: number) => (
-                <div key={idx} className="text-sm text-orange-700 mb-2 p-2 bg-white rounded">
-                  <p className="font-medium">Counter Price: ₹{item.price}/{listing.quantityUnit}</p>
-                  {item.message && <p className="text-xs mt-1">{item.message}</p>}
-                  <p className="text-xs text-gray-500 mt-1">{new Date(item.timestamp).toLocaleString()}</p>
+                <div key={idx} className="text-sm text-orange-700 mb-2 p-3 bg-white rounded border border-orange-300">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="font-bold text-orange-900">Counter Price: ₹{item.price}/{listing.quantityUnit}</p>
+                    <span className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded">
+                      {item.by === 'farmer' ? 'From Farmer' : 'From You'}
+                    </span>
+                  </div>
+                  {item.message && (
+                    <p className="text-sm mt-2 p-2 bg-orange-50 rounded italic">
+                      "{item.message}"
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </p>
                 </div>
               ))}
+              <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-300">
+                <p className="text-sm text-yellow-900">
+                  💡 The farmer has countered your offer. You can update your offer to match their price or propose a different amount.
+                </p>
+              </div>
             </div>
           )}
 
-          {myOffer.status !== 'accepted' && listing.status !== 'awarded' && (
+          {myOffer.status !== 'accepted' && myOffer.status !== 'proposed_award' && listing.status !== 'awarded' && (
             <div className="flex space-x-3">
               <button
                 onClick={() => openOfferModal(true)}
@@ -294,7 +357,59 @@ const FarmerListingDetail = () => {
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center"
               >
                 <Award className="h-4 w-4 mr-2" />
-                Award & Purchase
+                Propose Purchase
+              </button>
+            </div>
+          )}
+
+          {myOffer.status === 'proposed_award' && (
+            <div className="p-4 bg-purple-100 rounded border border-purple-300">
+              <p className="text-sm font-medium text-purple-900">⏳ Purchase proposal sent to farmer</p>
+              <p className="text-xs text-purple-700 mt-1">Waiting for the farmer to review and accept your purchase proposal.</p>
+            </div>
+          )}
+
+          {myOffer.status === 'farmer_accepted' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 rounded border-2 border-green-300">
+                <p className="text-lg font-bold text-green-900 mb-2">🎉 Farmer Accepted Your Offer!</p>
+                <p className="text-sm text-green-700 mb-3">
+                  The farmer has agreed to sell at ₹{myOffer.pricePerUnit}/{listing.quantityUnit}. 
+                  Please confirm to finalize this deal.
+                </p>
+                <div className="bg-white p-3 rounded border border-green-200 mb-3">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-600">Price per unit:</span>
+                    <span className="font-bold text-gray-900">₹{myOffer.pricePerUnit}/{listing.quantityUnit}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-600">Quantity:</span>
+                    <span className="font-bold text-gray-900">{myOffer.quantity} {listing.quantityUnit}</span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-2 border-t border-green-200">
+                    <span className="text-gray-700 font-medium">Total Amount:</span>
+                    <span className="font-bold text-green-600 text-lg">₹{(myOffer.pricePerUnit * myOffer.quantity).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!confirm('Are you sure you want to confirm this purchase? This will finalize the deal.')) {
+                    return;
+                  }
+                  try {
+                    await apiService.confirmAcceptedOffer(myOffer.id);
+                    await loadData();
+                    alert('Purchase confirmed! The deal is now finalized.');
+                  } catch (error) {
+                    console.error('Failed to confirm purchase:', error);
+                    alert('Failed to confirm purchase');
+                  }
+                }}
+                className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center text-lg font-semibold"
+              >
+                <Award className="h-5 w-5 mr-2" />
+                Confirm Purchase & Finalize Deal
               </button>
             </div>
           )}
@@ -341,11 +456,6 @@ const FarmerListingDetail = () => {
             </div>
 
             <div className="space-y-4">
-              <div className="p-3 bg-green-50 rounded">
-                <p className="text-sm text-green-900">Farmer's Minimum Price: ₹{listing.minimumPrice}/{listing.quantityUnit}</p>
-                <p className="text-xs text-green-700 mt-1">Submit a fair offer to start negotiation</p>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Your Offer Price (₹/{listing.quantityUnit}) *

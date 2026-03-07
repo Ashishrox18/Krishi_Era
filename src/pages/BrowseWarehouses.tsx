@@ -218,7 +218,7 @@ const BrowseWarehouses = () => {
     return matchesSearch && matchesType && matchesLocation
   })
 
-  const uniqueTypes = Array.from(new Set(facilities.map(f => f.type)))
+  const uniqueTypes = Array.from(new Set(facilities.map(f => f.type).filter(Boolean)))
   const uniqueStates = Array.from(new Set(facilities.map(f => f.address?.state).filter(Boolean)))
 
   const getTypeLabel = (type: string) => {
@@ -267,8 +267,8 @@ const BrowseWarehouses = () => {
               onChange={(e) => setSelectedType(e.target.value)}
             >
               <option value="">All Types</option>
-              {uniqueTypes.map(type => (
-                <option key={type} value={type}>{getTypeLabel(type)}</option>
+              {uniqueTypes.map((type, index) => (
+                <option key={`type-${type}-${index}`} value={type}>{getTypeLabel(type)}</option>
               ))}
             </select>
           </div>
@@ -279,8 +279,8 @@ const BrowseWarehouses = () => {
               onChange={(e) => setSelectedLocation(e.target.value)}
             >
               <option value="">All States</option>
-              {uniqueStates.map(state => (
-                <option key={state} value={state}>{state}</option>
+              {uniqueStates.map((state, index) => (
+                <option key={`state-${state}-${index}`} value={state}>{state}</option>
               ))}
             </select>
           </div>
