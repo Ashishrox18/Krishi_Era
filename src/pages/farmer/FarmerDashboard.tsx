@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { 
   Sprout, Calendar, TrendingUp, 
-  Cloud, Droplets, ThermometerSun, Wind, Package,
+  Cloud, Droplets, ThermometerSun, Wind, Package, MapPin,
   Warehouse, Truck, FileText, ShoppingCart, Lightbulb
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
