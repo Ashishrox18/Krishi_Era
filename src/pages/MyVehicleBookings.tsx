@@ -315,5 +315,3 @@ export default function MyVehicleBookings() {
     </div>
   );
 }
-
-export default MyVehicleBookings
