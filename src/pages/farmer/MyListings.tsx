@@ -97,7 +97,7 @@ const MyListings = () => {
           <h1 className="text-3xl font-bold text-gray-900">My Sales</h1>
           <p className="text-gray-600 mt-1">Manage your produce listings and view sales history</p>
         </div>
-        <Link to="/farmer/harvest" className="btn-primary">
+        <Link to="/farmer/harvest?tab=list-produce" className="btn-primary">
           List New Produce
         </Link>
       </div>
@@ -199,7 +199,7 @@ const MyListings = () => {
             }
           </p>
           {filter === 'all' && (
-            <Link to="/farmer/harvest" className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+            <Link to="/farmer/harvest?tab=list-produce" className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
               List Produce
             </Link>
           )}

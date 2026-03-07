@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Truck, MapPin, Calendar, Package, DollarSign, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Truck, MapPin, Calendar, Package, DollarSign, Clock, CheckCircle, XCircle, AlertCircle, X, Phone, Mail, User } from 'lucide-react';
 import { apiService } from '../services/api';
 
 export default function MyVehicleBookings() {
@@ -8,6 +8,7 @@ export default function MyVehicleBookings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'rejected'>('all');
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
 
   useEffect(() => {
     loadBookings();
@@ -303,13 +304,219 @@ export default function MyVehicleBookings() {
                       Track Vehicle
                     </button>
                   )}
-                  <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                  <button 
+                    onClick={() => setSelectedBooking(booking)}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  >
                     View Details
                   </button>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Booking Details Modal */}
+      {selectedBooking && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">Booking Details</h2>
+              <button
+                onClick={() => setSelectedBooking(null)}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  {getStatusIcon(selectedBooking.status)}
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedBooking.status)}`}>
+                    {selectedBooking.status}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500">
+                  ID: {selectedBooking.id?.substring(0, 8)}
+                </p>
+              </div>
+
+              {/* Route Information */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <MapPin className="h-5 w-5 mr-2 text-blue-600" />
+                  Route Details
+                </h3>
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs text-gray-600">Pickup Location</p>
+                    <p className="font-medium text-gray-900">{selectedBooking.pickupLocation}</p>
+                  </div>
+                  <div className="border-l-2 border-blue-300 pl-4 ml-2">
+                    <p className="text-xs text-gray-600">Drop Location</p>
+                    <p className="font-medium text-gray-900">{selectedBooking.dropLocation}</p>
+                  </div>
+                  {selectedBooking.estimatedDistance && (
+                    <div className="pt-2 border-t border-blue-200">
+                      <p className="text-sm text-gray-700">
+                        <span className="font-medium">Distance:</span> {selectedBooking.estimatedDistance} km
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Schedule Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                    <Calendar className="h-5 w-5 mr-2 text-gray-600" />
+                    Pickup Schedule
+                  </h3>
+                  <p className="text-sm text-gray-700">
+                    {new Date(selectedBooking.pickupDate).toLocaleDateString('en-IN', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900 mt-1">
+                    {new Date(selectedBooking.pickupDate).toLocaleTimeString('en-IN', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                    <DollarSign className="h-5 w-5 mr-2 text-gray-600" />
+                    Cost Estimate
+                  </h3>
+                  <p className="text-2xl font-bold text-green-600">
+                    ₹{selectedBooking.estimatedCost?.toLocaleString('en-IN') || 'N/A'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Estimated total cost</p>
+                </div>
+              </div>
+
+              {/* Cargo Details */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                  <Package className="h-5 w-5 mr-2 text-gray-600" />
+                  Cargo Information
+                </h3>
+                <p className="text-sm text-gray-700">{selectedBooking.cargoDetails || 'No cargo details provided'}</p>
+                {selectedBooking.specialRequirements && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-600 mb-1">Special Requirements</p>
+                    <p className="text-sm text-gray-700">{selectedBooking.specialRequirements}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Vehicle Details */}
+              {selectedBooking.vehicle && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <Truck className="h-5 w-5 mr-2 text-gray-600" />
+                    Vehicle Details
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-600">Type</p>
+                      <p className="font-medium text-gray-900">{selectedBooking.vehicle.type || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Capacity</p>
+                      <p className="font-medium text-gray-900">{selectedBooking.vehicle.capacity || 'N/A'}</p>
+                    </div>
+                    {selectedBooking.vehicle.registrationNumber && (
+                      <div>
+                        <p className="text-gray-600">Registration</p>
+                        <p className="font-medium text-gray-900">{selectedBooking.vehicle.registrationNumber}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Transporter Details */}
+              {selectedBooking.transporter && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <User className="h-5 w-5 mr-2 text-gray-600" />
+                    Transporter Details
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 mr-2 text-gray-500" />
+                      <span className="font-medium text-gray-900">{selectedBooking.transporter.name || 'N/A'}</span>
+                    </div>
+                    {selectedBooking.transporter.phone && (
+                      <div className="flex items-center">
+                        <Phone className="h-4 w-4 mr-2 text-gray-500" />
+                        <a href={`tel:${selectedBooking.transporter.phone}`} className="text-blue-600 hover:underline">
+                          {selectedBooking.transporter.phone}
+                        </a>
+                      </div>
+                    )}
+                    {selectedBooking.transporter.email && (
+                      <div className="flex items-center">
+                        <Mail className="h-4 w-4 mr-2 text-gray-500" />
+                        <a href={`mailto:${selectedBooking.transporter.email}`} className="text-blue-600 hover:underline">
+                          {selectedBooking.transporter.email}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">Booking Timeline</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Booking Created</span>
+                    <span className="font-medium text-gray-900">
+                      {selectedBooking.createdAt ? new Date(selectedBooking.createdAt).toLocaleString('en-IN') : 'N/A'}
+                    </span>
+                  </div>
+                  {selectedBooking.updatedAt && selectedBooking.updatedAt !== selectedBooking.createdAt && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Last Updated</span>
+                      <span className="font-medium text-gray-900">
+                        {new Date(selectedBooking.updatedAt).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end space-x-3">
+              <button
+                onClick={() => setSelectedBooking(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition"
+              >
+                Close
+              </button>
+              {selectedBooking.status?.toLowerCase() === 'confirmed' && (
+                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                  Track Vehicle
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

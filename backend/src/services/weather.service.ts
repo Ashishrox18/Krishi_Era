@@ -111,12 +111,41 @@ class WeatherService {
         weatherCode: data.daily.weather_code[index],
       }));
 
+      // Perform reverse geocoding to get city name using Nominatim (OpenStreetMap)
+      let cityName: string | undefined;
+      try {
+        const geoResponse = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+          params: {
+            lat: latitude,
+            lon: longitude,
+            format: 'json',
+            zoom: 10,
+          },
+          headers: {
+            'User-Agent': 'FarmConnect-App/1.0',
+          },
+        });
+
+        if (geoResponse.data && geoResponse.data.address) {
+          // Try to get city, town, village, or county
+          cityName = geoResponse.data.address.city || 
+                     geoResponse.data.address.town || 
+                     geoResponse.data.address.village ||
+                     geoResponse.data.address.county ||
+                     geoResponse.data.address.state;
+        }
+      } catch (geoError) {
+        console.error('Reverse geocoding error:', geoError);
+        // Continue without city name if geocoding fails
+      }
+
       return {
         current,
         forecast,
         location: {
           latitude,
           longitude,
+          city: cityName,
         },
       };
     } catch (error) {
@@ -168,7 +197,14 @@ class WeatherService {
    */
   async getDefaultWeather(): Promise<WeatherData> {
     // Default to New Delhi, India coordinates
-    return this.getWeather(28.6139, 77.2090);
+    const weatherData = await this.getWeather(28.6139, 77.2090);
+    return {
+      ...weatherData,
+      location: {
+        ...weatherData.location,
+        city: weatherData.location.city || 'New Delhi',
+      },
+    };
   }
 }
 

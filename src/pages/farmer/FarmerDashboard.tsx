@@ -165,29 +165,54 @@ const FarmerDashboard = () => {
             }
           },
           async (error) => {
-            // User denied location or error occurred - use default location
-            console.log('📍 Location access denied or unavailable, using default location');
-            console.log('Geolocation error:', error.message);
+            // Location unavailable - try IP-based geolocation as fallback
+            console.log('📍 GPS location unavailable, trying IP-based location...');
             try {
+              // Try to get approximate location from IP
+              const ipResponse = await fetch('https://ipapi.co/json/');
+              if (ipResponse.ok) {
+                const ipData = await ipResponse.json();
+                console.log('📍 Using IP-based location:', ipData.city, ipData.country_name);
+                const response = await apiService.getWeather(ipData.latitude, ipData.longitude);
+                setWeather(response);
+              } else {
+                throw new Error('IP geolocation failed');
+              }
+            } catch (ipError) {
+              // If IP geolocation also fails, use default
+              console.log('📍 Using default location');
               const response = await apiService.getWeather();
               setWeather(response);
-            } catch (error) {
-              console.error('Failed to load weather:', error);
             } finally {
               setLoadingWeather(false);
             }
           },
           {
-            timeout: 5000, // 5 second timeout
+            timeout: 10000, // 10 second timeout
             enableHighAccuracy: false, // Faster, less battery
+            maximumAge: 300000, // Accept cached position up to 5 minutes old
           }
         );
       } else {
-        // Browser doesn't support geolocation - use default
-        console.log('📍 Geolocation not supported, using default location');
-        const response = await apiService.getWeather();
-        setWeather(response);
-        setLoadingWeather(false);
+        // Browser doesn't support geolocation - try IP-based
+        console.log('📍 Geolocation not supported, trying IP-based location...');
+        try {
+          const ipResponse = await fetch('https://ipapi.co/json/');
+          if (ipResponse.ok) {
+            const ipData = await ipResponse.json();
+            console.log('📍 Using IP-based location:', ipData.city, ipData.country_name);
+            const response = await apiService.getWeather(ipData.latitude, ipData.longitude);
+            setWeather(response);
+          } else {
+            throw new Error('IP geolocation failed');
+          }
+        } catch (error) {
+          console.log('📍 Using default location');
+          const response = await apiService.getWeather();
+          setWeather(response);
+        } finally {
+          setLoadingWeather(false);
+        }
       }
     } catch (error) {
       console.error('Failed to load weather:', error);

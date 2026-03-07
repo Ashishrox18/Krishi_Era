@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Calendar, TrendingUp, AlertCircle, CheckCircle, Package, MapPin, DollarSign, Sparkles, Lightbulb, Sprout, Trash2 } from 'lucide-react';
 import { apiService } from '../../services/api';
 
 const HarvestManagement = () => {
-  const [activeTab, setActiveTab] = useState<'planted-crops' | 'harvest-ready' | 'listed-produce' | 'list-produce' | 'ai-strategy' | 'harvest-ready-form'>('planted-crops');
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as any) || 'planted-crops';
+  const [activeTab, setActiveTab] = useState<'planted-crops' | 'harvest-ready' | 'listed-produce' | 'list-produce' | 'ai-strategy' | 'harvest-ready-form'>(initialTab);
   const [loading, setLoading] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [selectedHarvest, setSelectedHarvest] = useState<any>(null);
@@ -93,43 +96,48 @@ const HarvestManagement = () => {
         const yieldUnit = crop.yieldUnit || 'tons';
         const displayYield = yieldValue ? `${yieldValue} ${yieldUnit}` : 'N/A';
         
+        // Get crop name (could be 'name' or 'cropType')
+        const cropName = crop.name || crop.cropType || 'Unknown';
+        
         // Fetch market price for this crop
         let marketPrice = '₹2,500/quintal'; // Default fallback
-        try {
-          const priceResponse = await apiService.getMarketPrices(
-            crop.name,
-            crop.storageLocation || userLocation || undefined
-          );
-          
-          if (priceResponse && priceResponse.prices) {
-            const cropKey = crop.name.toLowerCase();
-            if (priceResponse.prices[cropKey]) {
-              const priceData = priceResponse.prices[cropKey];
-              
-              // Convert price to quintals
-              let pricePerQuintal = priceData.current;
-              const unit = priceData.unit.toLowerCase();
-              
-              if (unit === 'ton' || unit === 'tons') {
-                // 1 ton = 10 quintals, so divide by 10
-                pricePerQuintal = priceData.current / 10;
-              } else if (unit === 'kg' || unit === 'kilogram') {
-                // 1 quintal = 100 kg, so multiply by 100
-                pricePerQuintal = priceData.current * 100;
+        if (cropName && cropName !== 'Unknown') {
+          try {
+            const priceResponse = await apiService.getMarketPrices(
+              cropName,
+              crop.storageLocation || userLocation || undefined
+            );
+            
+            if (priceResponse && priceResponse.prices) {
+              const cropKey = cropName.toLowerCase();
+              if (priceResponse.prices[cropKey]) {
+                const priceData = priceResponse.prices[cropKey];
+                
+                // Convert price to quintals
+                let pricePerQuintal = priceData.current;
+                const unit = priceData.unit?.toLowerCase() || 'quintal';
+                
+                if (unit === 'ton' || unit === 'tons') {
+                  // 1 ton = 10 quintals, so divide by 10
+                  pricePerQuintal = priceData.current / 10;
+                } else if (unit === 'kg' || unit === 'kilogram') {
+                  // 1 quintal = 100 kg, so multiply by 100
+                  pricePerQuintal = priceData.current * 100;
+                }
+                // If already in quintals, use as is
+                
+                marketPrice = `₹${Math.round(pricePerQuintal).toLocaleString('en-IN')}/quintal`;
               }
-              // If already in quintals, use as is
-              
-              marketPrice = `₹${Math.round(pricePerQuintal).toLocaleString('en-IN')}/quintal`;
             }
+          } catch (error) {
+            console.error(`Failed to fetch price for ${cropName}:`, error);
+            // Keep default fallback price
           }
-        } catch (error) {
-          console.error(`Failed to fetch price for ${crop.name}:`, error);
-          // Keep default fallback price
         }
         
         return {
           id: crop.id,
-          crop: crop.name,
+          crop: cropName,
           area: `${crop.area} acres`,
           status,
           daysRemaining: Math.max(0, daysRemaining),
