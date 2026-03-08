@@ -1,6 +1,6 @@
 # 🚀 Krishi Era - Quick Start Guide
 
-## Start in 3 Steps
+## Start in 2 Steps
 
 ### 1️⃣ Start Backend
 ```bash
@@ -9,15 +9,9 @@ npm start
 ```
 ✅ Backend running on `http://localhost:3000`
 
-### 2️⃣ Start Ollama (Optional - for AI features)
-```bash
-ollama serve
-```
-✅ Ollama running on `http://localhost:11434`
+**Note**: AI features use AWS Bedrock (Claude 3.5 Sonnet). Ensure AWS credentials are configured in `backend/.env`.
 
-**Note**: If Ollama is not running, AI features will use mock data automatically.
-
-### 3️⃣ Start Frontend
+### 2️⃣ Start Frontend
 ```bash
 npm run dev
 ```
@@ -84,17 +78,16 @@ npm install
 npm run dev
 ```
 
-### Ollama Not Working
-```bash
-# Install Ollama (if not installed)
-# Visit: https://ollama.ai
+### AI Features Not Working
+Ensure AWS Bedrock is configured:
+1. Check `backend/.env` has `USE_BEDROCK=true`
+2. Verify AWS credentials are set:
+   - `AWS_REGION=us-east-1`
+   - `AWS_ACCESS_KEY_ID=your_key`
+   - `AWS_SECRET_ACCESS_KEY=your_secret`
+3. Ensure Claude 3.5 Sonnet model access is enabled in AWS Console
 
-# Start server
-ollama serve
-
-# Pull model
-ollama pull llama3.1:8b
-```
+**Fallback**: If Bedrock is not configured, the system will use intelligent fallback recommendations.
 
 ### Port Already in Use
 ```bash

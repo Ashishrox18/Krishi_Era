@@ -19,9 +19,9 @@ All features have been successfully implemented and are ready to use!
   - Visual progress bars and insights
   - Confidence score for recommendations
 
-**AI Options**:
-- **Ollama** (Default, Free, Local): Configured and ready
-- **AWS Bedrock** (Paid, Cloud): Available as fallback
+**AI Configuration**:
+- **AWS Bedrock** (Primary): Claude 3.5 Sonnet for all AI features
+- **Intelligent Fallback**: Provides rule-based recommendations if Bedrock is not configured
 
 ### 2. **List Produce Feature**
 - **Location**: `/farmer/list-produce`
@@ -65,15 +65,9 @@ npm start
 ```
 Backend will run on: `http://localhost:3000`
 
-### Step 2: Start Ollama (for AI features)
-```bash
-ollama serve
-```
-Ollama will run on: `http://localhost:11434`
+**Note**: AI features use AWS Bedrock (Claude 3.5 Sonnet). Ensure AWS credentials are configured in `backend/.env` with `USE_BEDROCK=true`.
 
-**Note**: If Ollama is not running, the system will automatically use mock data for AI features.
-
-### Step 3: Start Frontend
+### Step 2: Start Frontend
 ```bash
 npm run dev
 ```
@@ -147,8 +141,8 @@ Frontend will run on: `http://localhost:5173`
 - IoT Core (Sensor Data)
 
 ### AI Services
-- **Ollama** (Primary): Free, local, llama3.1:8b model
-- **AWS Bedrock** (Fallback): Claude 3.5 Sonnet v2
+- **AWS Bedrock** (Primary): Claude 3.5 Sonnet v2 for all AI features
+- **Intelligent Fallback**: Rule-based recommendations when Bedrock is not configured
 
 ---
 
@@ -164,8 +158,7 @@ Frontend will run on: `http://localhost:5173`
 ### Backend
 - `backend/src/controllers/ai.controller.ts` - AI endpoints
 - `backend/src/controllers/farmer.controller.ts` - Farmer endpoints
-- `backend/src/services/ollama.service.ts` - Ollama integration
-- `backend/src/services/aws/bedrock.service.ts` - Bedrock integration
+- `backend/src/services/aws/bedrock.service.ts` - AWS Bedrock AI integration
 - `backend/src/routes/farmer.routes.ts` - Farmer routes
 - `backend/src/routes/ai.routes.ts` - AI routes
 
@@ -203,9 +196,10 @@ JWT_SECRET=your_jwt_secret
 JWT_EXPIRES_IN=7d
 
 # AI Configuration
-USE_OLLAMA=true
-OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1:8b
+USE_BEDROCK=true
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
 ```
 
 **Frontend** (`.env`):
@@ -282,22 +276,13 @@ npm install
 npm run dev
 ```
 
-### Ollama not working
-```bash
-# Check if Ollama is installed
-ollama --version
-
-# Start Ollama server
-ollama serve
-
-# Pull the model (if not already downloaded)
-ollama pull llama3.1:8b
-```
-
-### AI features returning mock data
-- This is normal if Ollama is not running
-- Start Ollama server: `ollama serve`
-- Or switch to AWS Bedrock: Set `USE_OLLAMA=false` in `backend/.env`
+### AI features not working
+- Ensure AWS Bedrock is configured in `backend/.env`:
+  - `USE_BEDROCK=true`
+  - `AWS_REGION=us-east-1`
+  - Valid AWS credentials
+- Check AWS Console for Bedrock model access (Claude 3.5 Sonnet)
+- If Bedrock is not configured, system will use intelligent fallback recommendations
 
 ### Login not working
 - Ensure backend is running on port 3000
@@ -374,9 +359,8 @@ npm run build
 ## 📚 Documentation
 
 - `docs/AWS_SETUP_GUIDE.md` - Complete AWS setup
-- `docs/OLLAMA_SETUP.md` - Ollama installation and setup
 - `docs/AI_OPTIONS_COMPARISON.md` - Compare AI providers
-- `docs/ENABLE_BEDROCK.md` - Enable AWS Bedrock
+- `BEDROCK_AI_MIGRATION_COMPLETE.md` - AWS Bedrock AI migration details
 - `SELLING_STRATEGY_GUIDE.md` - Selling strategy feature guide
 - `FARMER_REGISTRATION_GUIDE.md` - Farmer registration guide
 - `LOGIN_GUIDE.md` - Login and authentication guide
@@ -393,9 +377,6 @@ Your Krishi Era platform is fully functional with:
 - ✅ My listings management with edit/delete
 - ✅ Dashboard recent listings widget
 - ✅ AWS integration
-- ✅ Ollama AI integration
-- ✅ Responsive UI
-- ✅ Error handling
-- ✅ TypeScript type safety
-
 **You can now start the servers and test all features!**
+
+**AI Features**: All AI functionality now uses AWS Bedrock (Claude 3.5 Sonnet) for superior quality and reliability.
