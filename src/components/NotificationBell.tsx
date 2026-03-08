@@ -1,4 +1,4 @@
-import { Bell } from 'lucide-react'
+import { Bell, X, Trash2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { apiService } from '../services/api'
@@ -64,6 +64,34 @@ const NotificationBell = () => {
     }
   }
 
+  const deleteNotification = async (id: string, event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    
+    try {
+      await apiService.deleteNotification(id)
+      setNotifications(notifications.filter(n => n.id !== id))
+    } catch (error) {
+      console.error('Failed to delete notification:', error)
+    }
+  }
+
+  const clearAllNotifications = async () => {
+    if (!confirm('Are you sure you want to clear all notifications? This action cannot be undone.')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      await apiService.clearAllNotifications()
+      setNotifications([])
+    } catch (error) {
+      console.error('Failed to clear all notifications:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   return (
@@ -87,15 +115,27 @@ const NotificationBell = () => {
             onClick={() => setShowDropdown(false)}
           />
           <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl z-20 border border-gray-200">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-              {unreadCount > 0 && (
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    disabled={loading}
+                    className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              {notifications.length > 0 && (
                 <button
-                  onClick={markAllAsRead}
+                  onClick={clearAllNotifications}
                   disabled={loading}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50 flex items-center"
                 >
-                  Mark all as read
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Clear all
                 </button>
               )}
             </div>
@@ -109,36 +149,47 @@ const NotificationBell = () => {
               ) : (
                 <div className="divide-y divide-gray-200">
                   {notifications.map((notification) => (
-                    <Link
+                    <div
                       key={notification.id}
-                      to={notification.link}
-                      onClick={() => {
-                        markAsRead(notification.id)
-                        setShowDropdown(false)
-                      }}
-                      className={`block p-4 hover:bg-gray-50 transition ${
+                      className={`relative group ${
                         !notification.read ? 'bg-blue-50' : ''
                       }`}
                     >
-                      <div className="flex items-start">
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${
-                            !notification.read ? 'text-gray-900' : 'text-gray-700'
-                          }`}>
-                            {notification.title}
-                          </p>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {new Date(notification.createdAt).toLocaleString()}
-                          </p>
+                      <Link
+                        to={notification.link}
+                        onClick={() => {
+                          markAsRead(notification.id)
+                          setShowDropdown(false)
+                        }}
+                        className="block p-4 hover:bg-gray-50 transition"
+                      >
+                        <div className="flex items-start pr-8">
+                          <div className="flex-1">
+                            <p className={`text-sm font-medium ${
+                              !notification.read ? 'text-gray-900' : 'text-gray-700'
+                            }`}>
+                              {notification.title}
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(notification.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          {!notification.read && (
+                            <div className="ml-2 w-2 h-2 bg-blue-600 rounded-full" />
+                          )}
                         </div>
-                        {!notification.read && (
-                          <div className="ml-2 w-2 h-2 bg-blue-600 rounded-full" />
-                        )}
-                      </div>
-                    </Link>
+                      </Link>
+                      <button
+                        onClick={(e) => deleteNotification(notification.id, e)}
+                        className="absolute top-4 right-4 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition"
+                        title="Delete notification"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}

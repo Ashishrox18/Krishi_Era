@@ -14,4 +14,10 @@ router.put('/:notificationId/read', authenticate, controller.markNotificationAsR
 // Mark all notifications as read
 router.put('/mark-all-read', authenticate, controller.markAllNotificationsAsRead);
 
+// Delete a single notification
+router.delete('/:notificationId', authenticate, controller.deleteNotification);
+
+// Clear all notifications
+router.delete('/', authenticate, controller.clearAllNotifications);
+
 export default router;

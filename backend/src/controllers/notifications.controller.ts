@@ -105,6 +105,55 @@ export class NotificationsController {
     }
   }
 
+  // Delete a single notification
+  async deleteNotification(req: AuthRequest, res: Response) {
+    try {
+      const { notificationId } = req.params;
+      const userId = req.user!.id;
+
+      const notification = await dynamoDBService.get(NotificationsController.NOTIFICATIONS_TABLE, { id: notificationId });
+
+      if (!notification || notification.userId !== userId) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+
+      await dynamoDBService.delete(NotificationsController.NOTIFICATIONS_TABLE, { id: notificationId });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete notification error:', error);
+      res.status(500).json({ error: 'Failed to delete notification' });
+    }
+  }
+
+  // Clear all notifications for a user
+  async clearAllNotifications(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user!.id;
+
+      // Get all items and filter for notifications for this user
+      const allItems = await dynamoDBService.scan(NotificationsController.NOTIFICATIONS_TABLE);
+      
+      // Filter for notifications belonging to this user
+      const notifications = allItems.filter(item => 
+        item.type === 'notification' && 
+        item.userId === userId
+      );
+
+      // Delete all notifications
+      const deletePromises = notifications.map(notification => 
+        dynamoDBService.delete(NotificationsController.NOTIFICATIONS_TABLE, { id: notification.id })
+      );
+
+      await Promise.all(deletePromises);
+
+      res.json({ success: true, deleted: notifications.length });
+    } catch (error) {
+      console.error('Clear all notifications error:', error);
+      res.status(500).json({ error: 'Failed to clear all notifications' });
+    }
+  }
+
   // Create a notification (internal method)
   static async createNotification(data: {
     userId: string;

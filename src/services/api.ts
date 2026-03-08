@@ -577,6 +577,16 @@ class ApiService {
     return response.data;
   }
 
+  async deleteNotification(id: string) {
+    const response = await this.client.delete(`/notifications/${id}`);
+    return response.data;
+  }
+
+  async clearAllNotifications() {
+    const response = await this.client.delete('/notifications');
+    return response.data;
+  }
+
   // Quote/Negotiation APIs
   async submitQuote(data: any) {
     const response = await this.client.post('/quotes', data);

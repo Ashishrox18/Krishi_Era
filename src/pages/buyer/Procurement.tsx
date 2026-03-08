@@ -2,6 +2,7 @@ import { Search, MapPin, Package, Calendar, Plus, TrendingUp, Truck } from 'luci
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { apiService } from '../../services/api'
+import { getRelativeTime, formatDateTime } from '../../utils/timeUtils'
 
 const Procurement = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -225,8 +226,8 @@ const Procurement = () => {
                       <h3 className="text-xl font-semibold text-gray-900">
                         {listing.cropType} {listing.variety && `(${listing.variety})`}
                       </h3>
-                      <p className="text-sm text-gray-600">
-                        Listed {new Date(listing.createdAt).toLocaleDateString()}
+                      <p className="text-sm text-gray-600" title={formatDateTime(listing.createdAt)}>
+                        Listed {getRelativeTime(listing.createdAt)}
                       </p>
                     </div>
                     <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">

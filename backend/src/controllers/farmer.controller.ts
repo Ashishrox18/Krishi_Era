@@ -2,7 +2,6 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { dynamoDBService } from '../services/aws/dynamodb.service';
 import { bedrockService } from '../services/aws/bedrock.service';
-import { groqService } from '../services/ai/groq.service';
 import { snsService } from '../services/aws/sns.service';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationsController } from './notifications.controller';
@@ -52,10 +51,10 @@ export class FarmerController {
 
       let recommendations;
       
-      // Try Groq first
-      if (groqService.isEnabled()) {
-        console.log('Using Groq for crop recommendations');
-        recommendations = await groqService.getCropRecommendations({
+      // Use Amazon Bedrock AI
+      if (bedrockService.isEnabled()) {
+        console.log('Using Amazon Bedrock for crop recommendations');
+        recommendations = await bedrockService.getCropRecommendations({
           soilType,
           landSize,
           location,
@@ -64,9 +63,9 @@ export class FarmerController {
           season,
         });
       } else {
-        // Use Groq's fallback directly (don't try Bedrock)
-        console.log('Using fallback recommendations (Groq not configured)');
-        recommendations = await groqService.getCropRecommendations({
+        // Use fallback recommendations
+        console.log('Using fallback recommendations (Bedrock not configured)');
+        recommendations = await bedrockService.getCropRecommendations({
           soilType,
           landSize,
           location,

@@ -2,6 +2,7 @@ import { Package, MapPin, Calendar, Edit2, Trash2, Save, X, Eye, CheckCircle, Tr
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { apiService } from '../../services/api'
+import { getRelativeTime, formatDateTime } from '../../utils/timeUtils'
 
 const MyListings = () => {
   const [listings, setListings] = useState<any[]>([])
@@ -244,7 +245,7 @@ const MyListings = () => {
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="text-xl font-semibold text-gray-900">{listing.cropType} {listing.variety && `(${listing.variety})`}</h3>
-                      <p className="text-sm text-gray-600">Listed {new Date(listing.createdAt).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-600" title={formatDateTime(listing.createdAt)}>Listed {getRelativeTime(listing.createdAt)}</p>
                       {isFinalized && listing.awardedAt && (
                         <p className="text-sm text-green-600 font-medium mt-1">
                           ✓ Sold on {new Date(listing.awardedAt).toLocaleDateString()}

@@ -2,6 +2,7 @@ import { Package, MapPin, Calendar, Edit2, Trash2, TrendingUp, Save, X } from 'l
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { apiService } from '../../services/api'
+import { getRelativeTime, formatDateTime } from '../../utils/timeUtils'
 
 const MyProcurementRequests = () => {
   const [requests, setRequests] = useState<any[]>([])
@@ -202,8 +203,8 @@ const MyProcurementRequests = () => {
                       <h3 className="text-xl font-semibold text-gray-900">
                         {request.cropType} {request.variety && `(${request.variety})`}
                       </h3>
-                      <p className="text-sm text-gray-600">
-                        Created {new Date(request.createdAt).toLocaleDateString()}
+                      <p className="text-sm text-gray-600" title={formatDateTime(request.createdAt)}>
+                        Created {getRelativeTime(request.createdAt)}
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
