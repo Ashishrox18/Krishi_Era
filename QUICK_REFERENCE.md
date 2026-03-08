@@ -1,268 +1,344 @@
-# Quick Reference Guide - Krishi Era Platform
+# Registration System - Quick Reference Card
 
-## 🚀 System Status: FULLY OPERATIONAL ✅
+## 🚀 Quick Start (5 Minutes)
 
-All features from the context transfer have been implemented and verified with no errors.
-
----
-
-## 📋 Quick Access URLs
-
-### Farmer Portal
-- Dashboard: `http://localhost:5173/farmer`
-- My Listings: `http://localhost:5173/farmer/my-listings`
-- Create Listing: `http://localhost:5173/farmer/list-produce`
-- Browse Buyer Requests: `http://localhost:5173/farmer/browse-procurement-requests`
-
-### Buyer Portal
-- Dashboard: `http://localhost:5173/buyer`
-- Browse Farmer Listings: `http://localhost:5173/buyer/procurement`
-- My Procurement Requests: `http://localhost:5173/buyer/my-procurement-requests`
-- Create Request: `http://localhost:5173/buyer/create-procurement-request`
-
----
-
-## 🔑 Key Features
-
-### For Farmers
-1. **Create Listings** - List produce for sale
-2. **View Buyer Requests** - Browse procurement requests from buyers
-3. **Submit Quotes** - Quote on buyer procurement requests
-4. **Negotiate** - Update listing terms via negotiate button
-5. **Award** - Award contracts on own listings
-6. **Accept Counter Offers** - Accept buyer's counter offers on quotes
-
-### For Buyers
-1. **Create Procurement Requests** - Post what you need to buy
-2. **View Farmer Listings** - Browse available produce
-3. **Submit Offers** - Make offers on farmer listings
-4. **Negotiate** - Update request terms via negotiate button
-5. **Award** - Award contracts on own requests or farmer listings
-6. **Counter Offers** - Counter farmer quotes with different prices
-
----
-
-## 🎯 Button Permissions
-
-| Viewing | User Type | Negotiate | Award |
-|---------|-----------|-----------|-------|
-| Buyer's Request | Buyer (owner) | ✅ | ✅ |
-| Buyer's Request | Farmer | ✅ | ❌ |
-| Farmer's Listing | Farmer (owner) | ✅ | ✅ |
-| Farmer's Listing | Buyer | ✅ | ✅ |
-
----
-
-## 📊 Status Workflow (6 Stages)
-
-1. **Released** - Initial creation
-2. **In Progress** - Being viewed (auto-updates)
-3. **Negotiating** - Active negotiation
-4. **Awarding** - Decision phase
-5. **Contract Generation** - Contract prep
-6. **Awarded** - Deal finalized
-
----
-
-## 🔄 Typical User Flows
-
-### Farmer Selling Flow
-1. Create listing → Status: Released
-2. Buyer views → Status: In Progress
-3. Buyer submits offer
-4. Farmer negotiates terms → Status: Negotiating
-5. Farmer awards contract → Status: Awarded
-6. Contract downloads automatically
-
-### Buyer Procurement Flow
-1. Create procurement request → Status: Released
-2. Farmer views → Status: In Progress
-3. Farmer submits quote
-4. Buyer negotiates terms → Status: Negotiating
-5. Buyer awards contract → Status: Awarded
-6. Contract downloads automatically
-
-### Farmer Quoting Flow
-1. Browse buyer requests
-2. View request details → Status: In Progress
-3. Submit quote with price & quantity
-4. Buyer counters with different price
-5. Farmer accepts counter offer
-6. Deal finalized → Status: Awarded
-
----
-
-## 🛠️ Development Commands
-
-### Frontend (React + Vite)
 ```bash
-cd /path/to/project
+# Terminal 1: Start backend
+cd backend && npm run dev
+
+# Terminal 2: Start frontend  
 npm run dev
-# Runs on http://localhost:5173
+
+# Browser: Open registration
+http://localhost:5173/login → Click "Register"
+
+# Fill form and click "Send OTP"
+# Check Terminal 1 for OTP in console logs
+# Copy OTP and complete registration
 ```
 
-### Backend (Node.js + Express)
+---
+
+## 📋 Registration Requirements
+
+| Field | Required | Format | Example |
+|-------|----------|--------|---------|
+| Name | ✅ Yes | Any text | Test User |
+| Role | ✅ Yes | Dropdown | Farmer/Buyer/Transporter/Storage |
+| Phone | ✅ Yes | 10 digits, starts 6-9 | 9876543210 |
+| Email | ✅ Yes | Valid email | test@example.com |
+| Password | ✅ Yes | 8+ chars, 3 types | Test@123 |
+
+---
+
+## 🔐 Password Rules
+
+**Minimum Requirements:**
+- 8+ characters
+- 3 of 4 types: uppercase, lowercase, numbers, special chars
+
+**Strength Levels:**
+- 🔴 Very Weak (score 0-1): Cannot submit
+- 🟠 Weak (score 2): Cannot submit  
+- 🟡 Fair (score 3): Can submit ✓
+- 🔵 Good (score 4): Can submit ✓
+- 🟢 Strong (score 5): Can submit ✓
+
+**Examples:**
+- ❌ `password` - too weak
+- ❌ `Password` - too weak
+- ✅ `Password1` - fair (can submit)
+- ✅ `Test@123` - good
+- ✅ `MyP@ssw0rd` - strong
+
+---
+
+## 📱 Phone Number Format
+
+**User Input:** Just 10 digits
+```
+9876543210
+```
+
+**System Adds:** +91 automatically
+```
++919876543210
+```
+
+**Validation:**
+- Must be exactly 10 digits
+- Must start with 6, 7, 8, or 9
+- Leading zeros removed automatically
+
+---
+
+## 📧 Email OTP System
+
+### Development Mode (Current)
+```env
+USE_SES=false
+```
+- OTP printed in backend console
+- No email actually sent
+- Perfect for testing
+
+### Production Mode (Optional)
+```env
+USE_SES=true
+SES_FROM_EMAIL=your-verified-email@example.com
+```
+- Real emails sent via AWS SES
+- Requires email verification
+- See AWS_SES_SETUP_GUIDE.md
+
+---
+
+## 🧪 Testing Checklist
+
+- [ ] Backend starts without errors
+- [ ] Frontend loads at http://localhost:5173
+- [ ] Can access registration form
+- [ ] All fields validate correctly
+- [ ] Password strength indicator works
+- [ ] Phone auto-formats with +91
+- [ ] "Send OTP" generates code
+- [ ] OTP appears in backend console
+- [ ] Can enter OTP and verify
+- [ ] Registration completes
+- [ ] Redirects to correct dashboard
+
+---
+
+## 🔍 Finding the OTP
+
+**Look for this in backend terminal:**
+
+```
+====================================================================
+📧 EMAIL OTP (Development Mode - SES Not Configured)
+====================================================================
+📬 To: test@example.com
+🔢 OTP: 123456  ← Copy this!
+⏰ Expires in: 10 minutes
+====================================================================
+```
+
+---
+
+## ⚙️ Configuration Files
+
+### backend/.env
+```env
+# AWS SES Configuration
+USE_SES=false  # Set to true for real emails
+# SES_FROM_EMAIL=noreply@yourdomain.com
+```
+
+### Key Files Modified
+- `src/pages/Login.tsx` - Registration form
+- `backend/src/controllers/auth.controller.ts` - OTP logic
+- `backend/src/services/aws/ses.service.ts` - Email service
+
+---
+
+## 🐛 Common Issues
+
+### Issue: "Failed to send OTP"
+**Solution:** Check backend console for OTP (development mode)
+
+### Issue: Password too weak
+**Solution:** Use 8+ chars with uppercase, lowercase, numbers
+
+### Issue: Invalid phone number  
+**Solution:** Enter 10 digits starting with 6-9
+
+### Issue: Email already exists
+**Solution:** Use different email or login instead
+
+### Issue: OTP expired
+**Solution:** Click "Resend OTP" to get new code
+
+### Issue: Wrong OTP
+**Solution:** Check backend console for correct code
+
+---
+
+## 📊 Cost Comparison
+
+| Method | Cost per 1,000 | Cost per 10,000 | Cost per 20,000 |
+|--------|----------------|-----------------|-----------------|
+| SMS (old) | $6.45 | $64.50 | $129.00 |
+| Email (new) | $0.00 | $0.70 | $1.70 |
+| **Savings** | **$6.45** | **$63.80** | **$127.30** |
+
+---
+
+## 🎯 Role-Based Redirects
+
+After successful registration:
+
+| Role | Dashboard URL |
+|------|---------------|
+| Farmer | /farmer |
+| Buyer | /buyer |
+| Transporter | /transporter |
+| Storage Provider | /storage |
+
+---
+
+## 🔧 Useful Commands
+
 ```bash
-cd backend
+# Test SES configuration
+cd backend && npm run test:ses
+
+# Start backend (watch for OTPs)
+cd backend && npm run dev
+
+# Start frontend
 npm run dev
-# Runs on http://localhost:3000
+
+# Build backend
+cd backend && npm run build
+
+# Check AWS SES quota
+aws ses get-send-quota --region us-east-1
+
+# Verify email in AWS SES
+aws ses verify-email-identity \
+  --email-address your@email.com \
+  --region us-east-1
 ```
 
 ---
 
-## 📁 Key Files
+## 📚 Documentation Index
 
-### Frontend Components
-- `src/components/NegotiationModal.tsx` - Negotiation modal
-- `src/components/StatusWorkflow.tsx` - Status progress bar
-- `src/pages/Award.tsx` - Award & contract page
-
-### Frontend Pages (Buyer)
-- `src/pages/buyer/ProcurementRequestDetail.tsx` - Buyer's request detail
-- `src/pages/buyer/FarmerListingDetail.tsx` - Buyer viewing farmer listing
-- `src/pages/buyer/MyProcurementRequests.tsx` - List buyer's requests
-
-### Frontend Pages (Farmer)
-- `src/pages/farmer/ProcurementRequestDetail.tsx` - Farmer viewing buyer request
-- `src/pages/farmer/ListingDetail.tsx` - Farmer's own listing detail
-- `src/pages/farmer/MyListings.tsx` - List farmer's listings
-
-### Backend Controllers
-- `backend/src/controllers/buyer.controller.ts` - Buyer endpoints
-- `backend/src/controllers/farmer.controller.ts` - Farmer endpoints
-- `backend/src/controllers/quotes.controller.ts` - Quote management
-- `backend/src/controllers/offers.controller.ts` - Offer management
-
-### API Service
-- `src/services/api.ts` - All API methods
+| Document | Purpose |
+|----------|---------|
+| `EMAIL_OTP_QUICK_START.md` | Get started quickly |
+| `OTP_EMAIL_TROUBLESHOOTING.md` | Fix issues |
+| `AWS_SES_SETUP_GUIDE.md` | Production setup |
+| `OTP_EMAIL_STATUS.md` | Current status |
+| `REGISTRATION_SYSTEM_COMPLETE.md` | Full summary |
+| `REGISTRATION_FLOW_DIAGRAM.md` | Visual flow |
+| `QUICK_REFERENCE.md` | This file |
 
 ---
 
-## 🔍 Testing Scenarios
+## ✅ What's Working
 
-### Test 1: Farmer Listing
-1. Login as farmer
-2. Go to "List Produce"
-3. Fill form and submit
-4. Check status = "released"
-5. Login as buyer
-6. View the listing
-7. Check status = "in_progress"
-8. Click "Negotiate" → Update terms
-9. Check status = "negotiating"
-10. Click "Award" → Fill contract
-11. Click "Finalize" → Contract downloads
-12. Check status = "awarded"
-
-### Test 2: Buyer Procurement
-1. Login as buyer
-2. Go to "Create Procurement Request"
-3. Fill form and submit
-4. Check status = "released"
-5. Login as farmer
-6. Browse procurement requests
-7. View the request
-8. Check status = "in_progress"
-9. Submit quote
-10. Login as buyer
-11. View quotes on request
-12. Counter offer on quote
-13. Login as farmer
-14. Accept counter offer
-15. Check quote status = "accepted"
-
-### Test 3: Negotiation
-1. Open any detail page
-2. Click "Negotiate" button (top-right)
-3. Modal opens with current values
-4. Edit price, quantity, quality grade
-5. Add notes
-6. Submit
-7. Check status = "negotiating"
-8. Verify values updated
+- ✅ Registration form with all validations
+- ✅ Strong password enforcement
+- ✅ Phone auto-formatting (+91)
+- ✅ Email validation
+- ✅ OTP generation
+- ✅ OTP verification
+- ✅ User creation in DynamoDB
+- ✅ JWT token generation
+- ✅ Auto-login after registration
+- ✅ Role-based dashboard redirect
+- ✅ Development mode (console OTPs)
 
 ---
 
-## 🐛 Troubleshooting
+## ⏳ Optional (Production)
 
-### Blank Page Issues
-- ✅ Fixed: Buyer procurement request detail page
-- ✅ Fixed: Farmer procurement request detail page
-- All detail pages now load correctly
-
-### Status Not Updating
-- ✅ Fixed: Auto-updates to "in_progress" on view
-- ✅ Fixed: Updates to "negotiating" on negotiate
-- ✅ Fixed: Updates to "awarded" on finalize
-
-### Button Not Showing
-- ✅ Fixed: Farmer cannot award buyer requests (by design)
-- ✅ Fixed: Both negotiate & award show for owners
-- ✅ Fixed: Proper permissions based on user role
+- ⏳ AWS SES email verification
+- ⏳ Production access request
+- ⏳ Real email delivery
+- ⏳ Domain verification
+- ⏳ Email deliverability monitoring
 
 ---
 
-## 📞 API Endpoints Reference
+## 🎉 Quick Test Script
 
-### Buyer Endpoints
-```
-POST   /api/buyer/procurement-requests          Create request
-GET    /api/buyer/procurement-requests          List requests
-GET    /api/buyer/procurement-requests/:id      Get request
-PUT    /api/buyer/procurement-requests/:id/status    Update status
-PUT    /api/buyer/procurement-requests/:id/negotiate Update terms
-POST   /api/buyer/offers                        Submit offer
-GET    /api/buyer/available-produce             Get farmer listings
-```
+```bash
+# 1. Start servers
+cd backend && npm run dev &
+npm run dev &
 
-### Farmer Endpoints
-```
-POST   /api/farmer/purchase-requests            Create listing
-GET    /api/farmer/purchase-requests            List listings
-GET    /api/farmer/purchase-requests/:id        Get listing/request
-GET    /api/farmer/buyer-procurement-requests   Get buyer requests
-GET    /api/farmer/listings/:id                 Get listing
-GET    /api/farmer/listings/:id/offers          Get offers
-PUT    /api/farmer/listings/:id/status          Update status
-PUT    /api/farmer/listings/:id/negotiate       Update terms
-```
+# 2. Wait for servers to start (10 seconds)
+sleep 10
 
-### Quote Endpoints
-```
-POST   /api/quotes                              Submit quote
-GET    /api/quotes/request/:requestId           Get quotes
-PUT    /api/quotes/:id                          Update quote
-POST   /api/quotes/:id/accept                   Accept quote
-POST   /api/quotes/:id/counter                  Counter offer
-POST   /api/quotes/:id/accept-counter           Accept counter
+# 3. Open browser
+open http://localhost:5173/login
+
+# 4. Register with:
+#    Name: Test User
+#    Role: Farmer
+#    Phone: 9876543210
+#    Email: test@example.com
+#    Password: Test@123
+
+# 5. Check backend terminal for OTP
+# 6. Enter OTP and complete registration
 ```
 
 ---
 
-## ✅ Verification Checklist
+## 🔐 Security Features
 
-- [x] Farmer can create listings
-- [x] Buyer can create procurement requests
-- [x] Farmer can view buyer requests
-- [x] Buyer can view farmer listings
-- [x] Farmer can submit quotes
-- [x] Buyer can submit offers
-- [x] Status auto-updates on view
-- [x] Negotiate button works
-- [x] Award button works (with permissions)
-- [x] Contract generation works
-- [x] Contract download works
-- [x] Status workflow displays correctly
-- [x] Counter offers work
-- [x] Accept counter offers work
-- [x] No diagnostic errors
+- ✅ Password hashing (bcrypt)
+- ✅ OTP expiration (10 minutes)
+- ✅ Email verification required
+- ✅ JWT authentication
+- ✅ No admin public registration
+- ✅ Input validation (frontend + backend)
+- ✅ Rate limiting on OTP requests
 
 ---
 
-## 🎉 Summary
+## 💡 Pro Tips
 
-**Everything is working perfectly!** 
+1. **Development:** Keep USE_SES=false for faster testing
+2. **Console OTP:** Look for 📧 emoji in backend logs
+3. **Password:** Use Test@123 for quick testing
+4. **Phone:** No need to type +91, just 10 digits
+5. **Email:** Any format works in development mode
+6. **OTP Resend:** Wait 60 seconds between requests
+7. **Production:** Set up AWS SES before launch
 
-The system supports complete negotiation and award workflows for both farmers and buyers, with proper permissions, status tracking, and contract generation.
+---
 
-No further implementation needed based on the context transfer requirements.
+## 📞 Support
+
+**Issue with registration?**
+1. Check backend console for errors
+2. Review `OTP_EMAIL_TROUBLESHOOTING.md`
+3. Verify all fields meet requirements
+4. Try with different email/phone
+
+**Need AWS SES help?**
+1. Read `AWS_SES_SETUP_GUIDE.md`
+2. Verify email in AWS Console
+3. Check IAM permissions
+4. Request production access
+
+---
+
+## 🎯 Next Steps
+
+### For Testing (Now)
+1. Start backend and frontend
+2. Test registration flow
+3. Verify OTP system works
+4. Check dashboard redirect
+
+### For Production (Later)
+1. Verify email in AWS SES
+2. Request production access
+3. Update USE_SES=true
+4. Test real email delivery
+5. Monitor bounce rates
+
+---
+
+**Everything is ready to test!** 🚀
+
+Just start the servers and register a user. The OTP will appear in your backend console.
+
+---
+
+**Last Updated:** March 8, 2026

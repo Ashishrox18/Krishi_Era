@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { dynamoDBService } from '../services/aws/dynamodb.service';
-import { snsService } from '../services/aws/sns.service';
+import { sesService } from '../services/aws/ses.service';
 import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-change-in-production';
@@ -12,24 +12,75 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 const otpStore = new Map<string, { otp: string; expiresAt: number; userData: any }>();
 
 export class AuthController {
+  private validatePasswordStrength(password: string): { valid: boolean; message: string } {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    if (password.length < minLength) {
+      return { valid: false, message: 'Password must be at least 8 characters long' };
+    }
+
+    let score = 0;
+    if (hasUpperCase) score++;
+    if (hasLowerCase) score++;
+    if (hasNumber) score++;
+    if (hasSpecialChar) score++;
+
+    if (score < 3) {
+      return { 
+        valid: false, 
+        message: 'Password must contain at least 3 of: uppercase letters, lowercase letters, numbers, special characters' 
+      };
+    }
+
+    return { valid: true, message: 'Password is strong' };
+  }
+
   async sendOTP(req: Request, res: Response) {
     try {
-      const { phone, email, name, role, password } = req.body;
+      let { phone, email, name, role, password } = req.body;
 
-      // Validate phone number format (basic validation)
-      if (!phone || !phone.match(/^\+?[1-9]\d{1,14}$/)) {
-        return res.status(400).json({ error: 'Invalid phone number format. Use international format (e.g., +919876543210)' });
+      // Validate password strength
+      const passwordValidation = this.validatePasswordStrength(password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
       }
 
-      // Check if user already exists
-      const existingUsers = await dynamoDBService.scan(
-        process.env.DYNAMODB_USERS_TABLE!,
-        'email = :email',
-        { ':email': email }
-      );
+      // Validate email is provided
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
 
-      if (existingUsers.length > 0) {
-        return res.status(400).json({ error: 'User with this email already exists' });
+      // Normalize phone number - add +91 if not present
+      if (phone) {
+        phone = phone.trim();
+        if (!phone.startsWith('+')) {
+          // Remove any leading zeros
+          phone = phone.replace(/^0+/, '');
+          // Add +91 for Indian numbers
+          phone = '+91' + phone;
+        }
+      }
+
+      // Validate phone number format (Indian mobile: +91 followed by 10 digits starting with 6-9)
+      if (!phone || !phone.match(/^\+91[6-9]\d{9}$/)) {
+        return res.status(400).json({ error: 'Invalid phone number. Please enter a valid 10-digit Indian mobile number.' });
+      }
+
+      // Check if email is provided and if user already exists with that email
+      if (email) {
+        const existingUsers = await dynamoDBService.scan(
+          process.env.DYNAMODB_USERS_TABLE!,
+          'email = :email',
+          { ':email': email }
+        );
+
+        if (existingUsers.length > 0) {
+          return res.status(400).json({ error: 'User with this email already exists' });
+        }
       }
 
       // Check if phone already exists
@@ -47,38 +98,38 @@ export class AuthController {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-      // Store OTP and user data temporarily
-      otpStore.set(phone, {
+      // Store OTP and user data temporarily (use email as key)
+      otpStore.set(email, {
         otp,
         expiresAt,
         userData: { email, name, role, password, phone }
       });
 
-      // Send OTP via SMS
+      // Send OTP via Email
       try {
-        await snsService.sendOTP(phone, otp);
+        await sesService.sendOTP(email, otp);
         console.log('\n' + '='.repeat(60));
-        console.log('🔐 OTP VERIFICATION CODE');
+        console.log('📧 EMAIL OTP VERIFICATION CODE');
         console.log('='.repeat(60));
-        console.log(`📱 Phone: ${phone}`);
+        console.log(`📬 Email: ${email}`);
         console.log(`🔢 OTP: ${otp}`);
         console.log(`⏰ Expires in: 10 minutes`);
         console.log('='.repeat(60) + '\n');
-      } catch (smsError) {
-        console.error('SMS sending failed:', smsError);
-        // In development, continue even if SMS fails
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+        // In development, continue even if email fails
         console.log('\n' + '='.repeat(60));
-        console.log('🔐 OTP VERIFICATION CODE (Development Mode)');
+        console.log('📧 EMAIL OTP VERIFICATION CODE (Development Mode)');
         console.log('='.repeat(60));
-        console.log(`📱 Phone: ${phone}`);
+        console.log(`📬 Email: ${email}`);
         console.log(`🔢 OTP: ${otp}`);
         console.log(`⏰ Expires in: 10 minutes`);
-        console.log('⚠️  SMS sending failed - using console output');
+        console.log('⚠️  Email sending failed - using console output');
         console.log('='.repeat(60) + '\n');
       }
 
       res.status(200).json({ 
-        message: 'OTP sent successfully to your phone number',
+        message: 'OTP sent successfully to your email',
         expiresIn: 600 // seconds
       });
     } catch (error) {
@@ -89,10 +140,10 @@ export class AuthController {
 
   async verifyOTPAndRegister(req: Request, res: Response) {
     try {
-      const { phone, otp } = req.body;
+      const { email, otp } = req.body;
 
-      // Get stored OTP data
-      const otpData = otpStore.get(phone);
+      // Get stored OTP data (using email as key)
+      const otpData = otpStore.get(email);
 
       if (!otpData) {
         return res.status(400).json({ error: 'OTP not found or expired. Please request a new OTP.' });
@@ -100,7 +151,7 @@ export class AuthController {
 
       // Check if OTP expired
       if (Date.now() > otpData.expiresAt) {
-        otpStore.delete(phone);
+        otpStore.delete(email);
         return res.status(400).json({ error: 'OTP has expired. Please request a new OTP.' });
       }
 
@@ -110,7 +161,7 @@ export class AuthController {
       }
 
       // OTP verified - proceed with registration
-      const { email, password, name, role } = otpData.userData;
+      const { password, name, role, phone } = otpData.userData;
 
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -124,6 +175,7 @@ export class AuthController {
         role,
         phone,
         phoneVerified: true,
+        emailVerified: true,
         profile: {},
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -132,7 +184,7 @@ export class AuthController {
       await dynamoDBService.put(process.env.DYNAMODB_USERS_TABLE!, user);
 
       // Clear OTP from store
-      otpStore.delete(phone);
+      otpStore.delete(email);
 
       // Generate token
       const token = jwt.sign(
@@ -142,9 +194,9 @@ export class AuthController {
       );
 
       res.status(201).json({
-        user: { id: user.id, email: user.email, name: user.name, role: user.role, phoneVerified: true },
+        user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: true },
         token,
-        message: 'Registration successful! Phone number verified.'
+        message: 'Registration successful! Email verified.'
       });
     } catch (error) {
       console.error('Verify OTP error:', error);
@@ -155,6 +207,12 @@ export class AuthController {
   async register(req: Request, res: Response) {
     try {
       const { email, password, name, role, phone, profile } = req.body;
+
+      // Validate password strength
+      const passwordValidation = this.validatePasswordStrength(password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
+      }
 
       // Check if user exists
       const existingUsers = await dynamoDBService.scan(

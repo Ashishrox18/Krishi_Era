@@ -488,6 +488,22 @@ const FarmerDashboard = () => {
 
         {/* Right Column - Weather and Quick Actions */}
         <div className="space-y-6">
+          {/* Plant a Crop - Primary Action */}
+          <Link
+            to="/farmer/crop-planning"
+            className="block card bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold mb-1">{t('dashboard.plantACrop')}</h3>
+                <p className="text-green-100 text-sm">{t('dashboard.getAIRecommendations')}</p>
+              </div>
+              <div className="bg-white/20 p-3 rounded-full">
+                <Sprout className="h-8 w-8" />
+              </div>
+            </div>
+          </Link>
+
           {/* Weather Widget */}
           <div className="card">
             <div className="flex justify-between items-start mb-4">
@@ -559,11 +575,11 @@ const FarmerDashboard = () => {
               {/* Primary Actions */}
               <div className="grid grid-cols-2 gap-3">
                 <Link
-                  to="/farmer/crop-planning"
-                  className="p-3 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg hover:shadow-lg transition text-center"
+                  to="/farmer/harvest?tab=list-produce"
+                  className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg transition text-center"
                 >
-                  <Sprout className="h-6 w-6 mx-auto mb-1" />
-                  <p className="text-sm font-semibold">{t('dashboard.planCrop')}</p>
+                  <ShoppingCart className="h-6 w-6 mx-auto mb-1" />
+                  <p className="text-sm font-semibold">{t('dashboard.listProduce')}</p>
                 </Link>
                 <Link
                   to="/farmer/harvest"

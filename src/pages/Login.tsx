@@ -19,6 +19,53 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, message: '', color: '' });
+
+  const validatePassword = (password: string) => {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    let score = 0;
+    let message = '';
+    let color = '';
+
+    if (password.length >= minLength) score++;
+    if (hasUpperCase) score++;
+    if (hasLowerCase) score++;
+    if (hasNumber) score++;
+    if (hasSpecialChar) score++;
+
+    if (score === 0) {
+      message = 'Very Weak';
+      color = 'text-red-600';
+    } else if (score <= 2) {
+      message = 'Weak';
+      color = 'text-orange-600';
+    } else if (score === 3) {
+      message = 'Fair';
+      color = 'text-yellow-600';
+    } else if (score === 4) {
+      message = 'Good';
+      color = 'text-blue-600';
+    } else {
+      message = 'Strong';
+      color = 'text-green-600';
+    }
+
+    return { score, message, color };
+  };
+
+  const handlePasswordChange = (password: string) => {
+    setFormData({ ...formData, password });
+    if (password) {
+      setPasswordStrength(validatePassword(password));
+    } else {
+      setPasswordStrength({ score: 0, message: '', color: '' });
+    }
+  };
 
   const startCountdown = () => {
     setCountdown(60);
@@ -42,9 +89,31 @@ export default function Login() {
       return;
     }
 
-    // Validate phone number format
-    if (!formData.phone.match(/^\+?[1-9]\d{1,14}$/)) {
-      setError('Please enter a valid phone number with country code (e.g., +919876543210)');
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    // Validate password strength
+    if (passwordStrength.score < 3) {
+      setError('Password is too weak. Please use at least 8 characters with uppercase, lowercase, and numbers.');
+      return;
+    }
+
+    // Normalize phone number - add +91 if not present
+    let normalizedPhone = formData.phone.trim();
+    if (!normalizedPhone.startsWith('+')) {
+      // Remove any leading zeros
+      normalizedPhone = normalizedPhone.replace(/^0+/, '');
+      // Add +91 for Indian numbers
+      normalizedPhone = '+91' + normalizedPhone;
+    }
+
+    // Validate phone number format (10 digits for India)
+    if (!normalizedPhone.match(/^\+91[6-9]\d{9}$/)) {
+      setError('Please enter a valid 10-digit Indian mobile number');
       return;
     }
 
@@ -55,8 +124,11 @@ export default function Login() {
         email: formData.email,
         password: formData.password,
         role: formData.role,
-        phone: formData.phone,
+        phone: normalizedPhone,
       });
+      
+      // Update form data with normalized phone
+      setFormData({ ...formData, phone: normalizedPhone });
       
       setOtpSent(true);
       setShowOTPInput(true);
@@ -78,7 +150,7 @@ export default function Login() {
     setLoading(true);
     try {
       const response = await apiService.verifyOTP({
-        phone: formData.phone,
+        email: formData.email,
         otp: formData.otp,
       });
       
@@ -216,7 +288,6 @@ export default function Login() {
                   <option value="buyer">Buyer</option>
                   <option value="transporter">Transporter</option>
                   <option value="storage">Storage Provider</option>
-                  <option value="admin">Admin</option>
                 </select>
               </div>
 
@@ -232,10 +303,12 @@ export default function Login() {
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="+919876543210"
+                    placeholder="9876543210"
+                    maxLength={10}
+                    pattern="[6-9][0-9]{9}"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Include country code (e.g., +91 for India)</p>
+                <p className="text-xs text-gray-500 mt-1">Enter 10-digit mobile number (country code +91 will be added automatically)</p>
               </div>
 
               <div>
@@ -250,6 +323,7 @@ export default function Login() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="your@email.com"
                 />
+                <p className="text-xs text-gray-500 mt-1">OTP will be sent to this email</p>
               </div>
 
               <div>
@@ -260,10 +334,35 @@ export default function Login() {
                   type="password"
                   required
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Enter password"
+                  minLength={8}
                 />
+                {formData.password && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-600">Password Strength:</span>
+                      <span className={`text-xs font-medium ${passwordStrength.color}`}>
+                        {passwordStrength.message}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${
+                          passwordStrength.score <= 2 ? 'bg-red-500' :
+                          passwordStrength.score === 3 ? 'bg-yellow-500' :
+                          passwordStrength.score === 4 ? 'bg-blue-500' :
+                          'bg-green-500'
+                        }`}
+                        style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Use 8+ characters with uppercase, lowercase, numbers & symbols
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -273,10 +372,10 @@ export default function Login() {
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center mb-2">
                   <Shield className="h-5 w-5 text-blue-600 mr-2" />
-                  <p className="text-sm font-medium text-blue-900">Verify Your Phone Number</p>
+                  <p className="text-sm font-medium text-blue-900">Verify Your Email</p>
                 </div>
                 <p className="text-xs text-blue-700">
-                  We've sent a 6-digit OTP to {formData.phone}
+                  We've sent a 6-digit OTP to {formData.email}
                 </p>
               </div>
 
@@ -309,7 +408,7 @@ export default function Login() {
                   onClick={resetRegistration}
                   className="text-gray-600 hover:text-gray-700"
                 >
-                  Change Number
+                  Change Email
                 </button>
               </div>
             </div>
@@ -371,7 +470,7 @@ export default function Login() {
           <div className="mt-4 p-3 bg-yellow-50 rounded-md border border-yellow-200">
             <p className="text-xs text-yellow-800">
               <Shield className="h-3 w-3 inline mr-1" />
-              Your phone number will be verified via OTP for security
+              Your email will be verified via OTP for security
             </p>
           </div>
         )}
