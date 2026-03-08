@@ -23,3 +23,9 @@ customHeaders:
         value: 'SAMEORIGIN'
       - key: 'X-Content-Type-Options'
         value: 'nosniff'
+# Redirect rules for client-side routing (SPA)
+# This ensures all routes are handled by index.html
+redirects:
+  - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
+    target: '/index.html'
+    status: '200'
