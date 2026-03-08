@@ -290,7 +290,7 @@ const HarvestManagement = () => {
 
   const fetchCurrentPrice = async () => {
     if (!strategyForm.cropType) {
-      console.log('⚠️ No crop type selected');
+      alert('⚠️ Please select a crop type first');
       return;
     }
 
@@ -306,11 +306,9 @@ const HarvestManagement = () => {
       const response = await apiService.getMarketPrices(cropType, strategyForm.location || undefined);
       
       console.log('📦 Full API Response:', response);
-      console.log('📦 Response type:', typeof response);
-      console.log('📦 Response status:', response?.status);
       
       if (!response) {
-        console.log('⚠️ Response is null or undefined');
+        alert('❌ Failed to fetch price: No response from server. Please ensure backend is running.');
         return;
       }
       
@@ -325,19 +323,31 @@ const HarvestManagement = () => {
           console.log(`💰 Price: ₹${priceData.current}/${priceData.unit}, Trend: ${priceData.trend} (${priceData.change})`);
           
           updateStrategyField('currentMarketPrice', priceData.current.toString());
+          alert(`✅ Price fetched successfully!\n\n💰 ₹${priceData.current}/${priceData.unit}\n📈 Trend: ${priceData.trend} (${priceData.change})`);
         } else {
           console.log(`⚠️ No price data found for "${cropKey}"`);
-          console.log(`Available crops:`, Object.keys(response.prices).join(', '));
+          alert(`⚠️ No price data available for "${cropType}".\n\nAvailable crops: ${Object.keys(response.prices).join(', ')}`);
         }
       } else {
         console.log('⚠️ Invalid response format - no prices object:', response);
+        alert('❌ Invalid response format from server. Please try again.');
       }
     } catch (error: any) {
       console.error('❌ Failed to fetch market price:', error);
-      console.error('Error response:', error.response);
-      console.error('Error status:', error.response?.status);
-      console.error('Error data:', error.response?.data);
-      console.error('Error message:', error.message);
+      
+      let errorMessage = 'Failed to fetch market price.';
+      
+      if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+        errorMessage = '❌ Network Error: Cannot connect to backend server.\n\nPlease ensure:\n1. Backend server is running on port 3000\n2. You are logged in\n3. Your internet connection is active';
+      } else if (error.response?.status === 401) {
+        errorMessage = '❌ Authentication Error: Please log in again.';
+      } else if (error.response?.status === 500) {
+        errorMessage = '❌ Server Error: ' + (error.response?.data?.error || 'Internal server error');
+      } else if (error.message) {
+        errorMessage = `❌ Error: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     } finally {
       setFetchingPrice(false);
     }
@@ -1286,20 +1296,30 @@ const HarvestManagement = () => {
                         type="button"
                         onClick={async () => {
                           if (!formData.cropType) {
-                            alert('Please select a crop type first');
+                            alert('⚠️ Please select a crop type first');
                             return;
                           }
                           setFetchingPrice(true);
                           try {
+                            console.log(`🔍 Fetching price for ${formData.cropType}...`);
                             const response = await apiService.getMarketPrices(
                               formData.cropType,
                               formData.location || undefined
                             );
                             
+                            console.log('📦 API Response:', response);
+                            
+                            if (!response) {
+                              alert('❌ Failed to fetch price: No response from server.\n\nPlease ensure backend is running on port 3000.');
+                              return;
+                            }
+                            
                             if (response && response.prices) {
                               const cropKey = formData.cropType.toLowerCase();
                               if (response.prices[cropKey]) {
                                 const priceData = response.prices[cropKey];
+                                console.log(`✅ Price data:`, priceData);
+                                
                                 // Convert price to per quintal if needed
                                 let pricePerQuintal = priceData.current;
                                 if (priceData.unit.toLowerCase() === 'ton') {
@@ -1307,12 +1327,31 @@ const HarvestManagement = () => {
                                 } else if (priceData.unit.toLowerCase() === 'kg') {
                                   pricePerQuintal = priceData.current * 100;
                                 }
+                                
                                 updateField('pricePerUnit', pricePerQuintal.toString());
+                                alert(`✅ Price fetched successfully!\n\n💰 ₹${pricePerQuintal}/quintal\n📈 Trend: ${priceData.trend} (${priceData.change})`);
+                              } else {
+                                alert(`⚠️ No price data available for "${formData.cropType}".\n\nPlease enter price manually.`);
                               }
+                            } else {
+                              alert('❌ Invalid response format. Please try again.');
                             }
-                          } catch (error) {
+                          } catch (error: any) {
                             console.error('Failed to fetch price:', error);
-                            alert('Failed to fetch market price. Please enter manually.');
+                            
+                            let errorMessage = 'Failed to fetch market price.';
+                            
+                            if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+                              errorMessage = '❌ Network Error: Cannot connect to backend.\n\nPlease ensure:\n1. Backend server is running (port 3000)\n2. You are logged in\n3. Internet connection is active';
+                            } else if (error.response?.status === 401) {
+                              errorMessage = '❌ Authentication Error: Please log in again.';
+                            } else if (error.response?.status === 500) {
+                              errorMessage = '❌ Server Error: ' + (error.response?.data?.error || 'Internal server error');
+                            } else if (error.message) {
+                              errorMessage = `❌ Error: ${error.message}`;
+                            }
+                            
+                            alert(errorMessage + '\n\nYou can enter the price manually.');
                           } finally {
                             setFetchingPrice(false);
                           }
