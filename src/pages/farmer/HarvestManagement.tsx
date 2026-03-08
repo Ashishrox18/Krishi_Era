@@ -55,6 +55,7 @@ const HarvestManagement = () => {
   const [loadingHarvests, setLoadingHarvests] = useState(false);
   const [deletingCropIds, setDeletingCropIds] = useState<Set<string>>(new Set());
   const [soldCrops, setSoldCrops] = useState<any[]>([]); // Store sold crops with sale info
+  const [listedProduce, setListedProduce] = useState<any[]>([]); // Store active listings
   
   // Fetch crops/harvests on component mount
   useEffect(() => {
@@ -99,7 +100,13 @@ const HarvestManagement = () => {
         listing.status === 'awarded' && listing.finalPrice
       );
       
+      // Filter for active listings (not yet sold)
+      const activeListings = listings.filter((listing: any) => 
+        listing.status !== 'awarded' && listing.status !== 'cancelled'
+      );
+      
       setSoldCrops(finalizedListings);
+      setListedProduce(activeListings);
     } catch (error) {
       console.error('Failed to fetch sold crops:', error);
     }
@@ -1195,16 +1202,16 @@ const HarvestManagement = () => {
             <div className="card">
               <p className="text-sm text-gray-600">Listed Items</p>
               <p className="text-3xl font-bold text-purple-600">
-                {harvests.filter(h => h.status === 'listed').length}
+                {harvests.filter(h => h.status === 'listed').length + listedProduce.length}
               </p>
             </div>
             <div className="card">
               <p className="text-sm text-gray-600">Total Listed Quantity</p>
               <p className="text-3xl font-bold text-blue-600">
-                {harvests.filter(h => h.status === 'listed').reduce((sum, h) => {
+                {(harvests.filter(h => h.status === 'listed').reduce((sum, h) => {
                   const match = h.expectedYield?.match(/([\d.]+)/);
                   return sum + (match ? parseFloat(match[1]) : 0);
-                }, 0).toFixed(1)} quintals
+                }, 0) + listedProduce.reduce((sum, listing) => sum + (listing.quantity || 0), 0)).toFixed(1)} {listedProduce[0]?.quantityUnit || 'quintals'}
               </p>
             </div>
             <div className="card">
@@ -1220,7 +1227,7 @@ const HarvestManagement = () => {
             </div>
           </div>
 
-          {harvests.filter(h => h.status === 'listed').length > 0 && (
+          {(harvests.filter(h => h.status === 'listed').length > 0 || listedProduce.length > 0) && (
             <>
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
@@ -1235,6 +1242,7 @@ const HarvestManagement = () => {
               </div>
 
               <div className="space-y-4">
+                {/* Show crops with status 'listed' */}
                 {harvests.filter(h => h.status === 'listed').map((harvest) => (
                   <div key={harvest.id || harvest.crop} className="card">
                     <div className="flex items-start justify-between mb-4">
@@ -1256,6 +1264,7 @@ const HarvestManagement = () => {
                                 try {
                                   await apiService.updateCrop(harvest.id, { status: 'ready' });
                                   fetchHarvests();
+                                  fetchSoldCrops();
                                 } catch (error) {
                                   console.error('Failed to unlist:', error);
                                   alert('Failed to remove listing');
@@ -1291,6 +1300,80 @@ const HarvestManagement = () => {
                       <div>
                         <p className="text-sm font-medium text-gray-900">Status</p>
                         <p className="text-sm text-gray-700">Waiting for buyer quotes</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Show active listings from purchase requests */}
+                {listedProduce.map((listing) => (
+                  <div key={listing.id} className="card">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="text-xl font-semibold text-gray-900">{listing.cropType}</h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                            Listed for Sale
+                          </span>
+                          {listing.variety && (
+                            <span className="text-sm text-gray-600">({listing.variety})</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{listing.pickupLocation}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (confirm(`Remove ${listing.cropType} from listings?`)) {
+                              try {
+                                await apiService.updatePurchaseRequest(listing.id, { status: 'cancelled' });
+                                fetchSoldCrops();
+                              } catch (error) {
+                                console.error('Failed to cancel listing:', error);
+                                alert('Failed to remove listing');
+                              }
+                            }
+                          }}
+                          className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center text-sm font-medium shadow-sm hover:shadow-md"
+                          title="Remove from listings"
+                        >
+                          Unlist
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <p className="text-xs text-gray-600">Quantity</p>
+                        <p className="text-lg font-semibold text-gray-900">{listing.quantity} {listing.quantityUnit}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Minimum Price</p>
+                        <p className="text-lg font-semibold text-gray-900">₹{listing.minimumPrice}/{listing.quantityUnit}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Quality</p>
+                        <p className="text-lg font-semibold text-gray-900">Grade {listing.qualityGrade || 'A'}</p>
+                      </div>
+                    </div>
+
+                    {listing.description && (
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-600 mb-1">Description</p>
+                        <p className="text-sm text-gray-700">{listing.description}</p>
+                      </div>
+                    )}
+
+                    <div className="p-3 rounded-lg flex items-start space-x-2 bg-purple-50">
+                      <Package className="h-5 w-5 text-purple-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">Status: {listing.status}</p>
+                        <p className="text-sm text-gray-700">
+                          {listing.status === 'open' && 'Waiting for buyer quotes'}
+                          {listing.status === 'negotiating' && `Negotiating with buyers (${listing.offers?.length || 0} offers)`}
+                          {listing.status === 'pending' && 'Pending confirmation'}
+                        </p>
                       </div>
                     </div>
                   </div>
