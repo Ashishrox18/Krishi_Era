@@ -41,6 +41,7 @@ app.use(cors({
     'http://localhost:3000',
     'https://krishiai.in',
     'https://www.krishiai.in',
+    'https://main.d3o65ri2eglx5a.amplifyapp.com',
     'https://feature-deployment.d3o65ri2eglx5a.amplifyapp.com',
     'https://d3o65ri2eglx5a.amplifyapp.com',
     'https://d2ah0elagm6okv.cloudfront.net'
