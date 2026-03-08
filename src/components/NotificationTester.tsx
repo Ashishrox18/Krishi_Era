@@ -38,15 +38,16 @@ const NotificationTester = () => {
         const error = await response.json();
         setMessage(`❌ Error: ${error.error || 'Failed to create test listing'}`);
       }
-    } catch (error) {
-      setMessage(`❌ Network error: ${error.message}`);
+    } catch (error: any) {
+      setMessage(`❌ Network error: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
   // Only show in development
-  if (process.env.NODE_ENV === 'production') {
+  const isProd = import.meta.env.MODE === 'production';
+  if (isProd) {
     return null;
   }
 

@@ -115,9 +115,9 @@ const ProcurementRequestDetail = () => {
   const handleNegotiate = async (updates: any) => {
     try {
       // Farmer should submit/update their quote, not negotiate the request directly
-      if (existingQuote) {
+      if (myQuote) {
         // Update existing quote
-        await apiService.updateQuote(existingQuote.id, {
+        await apiService.updateQuote(myQuote.id, {
           pricePerUnit: updates.maxPricePerUnit || updates.minimumPrice,
           quantity: updates.quantity,
           message: updates.negotiationNotes || 'Updated quote terms'
