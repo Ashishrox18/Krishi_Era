@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { X, MessageSquare, Lightbulb, TrendingUp, Loader } from 'lucide-react'
+import { MessageSquare, Lightbulb, Loader, TrendingUp, DollarSign } from 'lucide-react'
 import { apiService } from '../services/api'
+import Modal from './Modal'
 
 interface NegotiationModalProps {
   isOpen: boolean
@@ -104,96 +105,114 @@ const NegotiationModal = ({ isOpen, onClose, onSubmit, data, type }: Negotiation
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-2">
-            <MessageSquare className="h-6 w-6 text-orange-600" />
-            <h2 className="text-2xl font-bold text-gray-900">Negotiate Terms</h2>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="lg"
+      title={
+        <div className="flex items-center space-x-2">
+          <div className="p-2 bg-orange-100 rounded-lg">
+            <MessageSquare className="h-5 w-5 text-orange-600" />
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition"
-          >
-            <X className="h-6 w-6" />
-          </button>
+          <span>Negotiate Terms</span>
         </div>
+      }
+    >
+      <div className="p-6"
 
-        <div className="mb-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
-          <p className="text-sm text-orange-900 font-medium">
+        <div className="mb-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-200 shadow-sm">
+          <p className="text-sm text-orange-900 font-medium flex items-center">
+            <TrendingUp className="h-4 w-4 mr-2" />
             Update the terms below to continue negotiation. The other party will be notified of your changes.
           </p>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
-            <p className="text-sm text-red-900 font-medium">{error}</p>
+          <div className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200 shadow-sm animate-shake">
+            <p className="text-sm text-red-900 font-medium flex items-center">
+              <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+              {error}
+            </p>
           </div>
         )}
 
         {/* Success Message */}
         {success && (
-          <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
-            <p className="text-sm text-green-900 font-medium">{success}</p>
+          <div className="mb-4 p-4 bg-green-50 rounded-xl border border-green-200 shadow-sm animate-slideDown">
+            <p className="text-sm text-green-900 font-medium flex items-center">
+              <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+              {success}
+            </p>
           </div>
         )}
 
         {/* AI Suggestion Section */}
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
-              <Lightbulb className="h-5 w-5 text-blue-600" />
-              <h3 className="text-sm font-medium text-blue-900">AI Negotiation Assistant</h3>
+              <div className="p-1.5 bg-blue-100 rounded-lg">
+                <Lightbulb className="h-4 w-4 text-blue-600" />
+              </div>
+              <h3 className="text-sm font-semibold text-blue-900">AI Negotiation Assistant</h3>
             </div>
             <button
               type="button"
               onClick={getAISuggestion}
               disabled={loadingAI || !price}
-              className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md transform hover:scale-105"
             >
-              {loadingAI ? <Loader className="h-3 w-3 animate-spin" /> : 'Get AI Suggestion'}
+              {loadingAI ? (
+                <span className="flex items-center">
+                  <Loader className="h-4 w-4 animate-spin mr-2" />
+                  Analyzing...
+                </span>
+              ) : (
+                'Get AI Suggestion'
+              )}
             </button>
           </div>
           {aiSuggestion && (
-            <div className="mt-2 p-3 bg-white rounded border border-blue-200">
-              <p className="text-sm text-blue-800">{aiSuggestion}</p>
+            <div className="mt-3 p-4 bg-white rounded-lg border border-blue-200 shadow-sm animate-slideDown">
+              <p className="text-sm text-blue-900 leading-relaxed">{aiSuggestion}</p>
             </div>
           )}
           {!aiSuggestion && !loadingAI && (
-            <p className="text-xs text-blue-700">Click "Get AI Suggestion" for personalized negotiation advice based on market conditions.</p>
+            <p className="text-xs text-blue-700 mt-2">💡 Click "Get AI Suggestion" for personalized negotiation advice based on market conditions.</p>
           )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Current Details */}
-          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-2 gap-4 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-200">
             <div>
-              <p className="text-xs text-gray-600">Crop Type</p>
-              <p className="font-semibold text-gray-900">{data?.cropType}</p>
+              <p className="text-xs text-gray-600 font-medium mb-1">Crop Type</p>
+              <p className="font-semibold text-gray-900 text-lg">{data?.cropType}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600">Variety</p>
-              <p className="font-semibold text-gray-900">{data?.variety || 'N/A'}</p>
+              <p className="text-xs text-gray-600 font-medium mb-1">Variety</p>
+              <p className="font-semibold text-gray-900 text-lg">{data?.variety || 'N/A'}</p>
             </div>
           </div>
 
           {/* Editable Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                <DollarSign className="h-4 w-4 mr-1 text-green-600" />
                 {type === 'listing' ? 'Minimum Price' : 'Maximum Price'} (₹/{data?.quantityUnit}) *
               </label>
               <input
                 type="number"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="input"
+                className="input focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                 placeholder="Enter price per unit"
                 required
                 step="0.01"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1.5 flex items-center">
+                <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full mr-1.5"></span>
                 Current: ₹{type === 'listing' ? data?.minimumPrice : data?.maxPricePerUnit}
               </p>
             </div>
@@ -236,11 +255,11 @@ const NegotiationModal = ({ isOpen, onClose, onSubmit, data, type }: Negotiation
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Total Amount
               </label>
-              <div className="input bg-gray-100 font-semibold text-lg text-green-600">
-                ₹{price && quantity ? (parseFloat(price) * parseFloat(quantity)).toLocaleString() : '0'}
+              <div className="input bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 font-bold text-xl text-green-700 flex items-center justify-center shadow-sm">
+                ₹{price && quantity ? (parseFloat(price) * parseFloat(quantity)).toLocaleString('en-IN') : '0'}
               </div>
             </div>
           </div>
@@ -260,25 +279,32 @@ const NegotiationModal = ({ isOpen, onClose, onSubmit, data, type }: Negotiation
           </div>
 
           {/* Actions */}
-          <div className="flex space-x-4 pt-4 border-t">
+          <div className="flex space-x-4 pt-6 border-t border-gray-200">
             <button
               type="submit"
               disabled={loading || !price || !quantity}
-              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              className="flex-1 px-6 py-3.5 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-xl hover:from-orange-700 hover:to-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
             >
-              {loading ? 'Updating...' : 'Update & Continue Negotiation'}
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <Loader className="h-5 w-5 animate-spin mr-2" />
+                  Updating...
+                </span>
+              ) : (
+                'Update & Continue Negotiation'
+              )}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+              className="px-6 py-3.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
             >
               Cancel
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   )
 }
 
