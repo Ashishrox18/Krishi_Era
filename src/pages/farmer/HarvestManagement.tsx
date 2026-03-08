@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Calendar, TrendingUp, AlertCircle, CheckCircle, Package, MapPin, DollarSign, Sparkles, Lightbulb, Sprout, Trash2 } from 'lucide-react';
 import { apiService } from '../../services/api';
@@ -11,6 +11,11 @@ const HarvestManagement = () => {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [selectedHarvest, setSelectedHarvest] = useState<any>(null);
   const [harvestReadyForm, setHarvestReadyForm] = useState<any>(null);
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [searchingLocations, setSearchingLocations] = useState(false);
+  const locationDropdownRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Debug: Log when harvestReadyForm changes
   useEffect(() => {
@@ -56,6 +61,23 @@ const HarvestManagement = () => {
     fetchHarvests();
     fetchSoldCrops();
   }, []);
+  
+  // Close location dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
+        setShowLocationSuggestions(false);
+      }
+    };
+
+    if (showLocationSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showLocationSuggestions]);
   
   // Auto-refresh sold crops when on listed-produce tab
   useEffect(() => {
@@ -261,6 +283,74 @@ const HarvestManagement = () => {
         fetchCurrentPriceForCrop(value);
       }, 500);
     }
+    
+    // Show location suggestions when typing with debounce
+    if (field === 'location' && value.length > 2) {
+      // Clear previous timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      
+      setSearchingLocations(true);
+      // Debounce search by 500ms
+      searchTimeoutRef.current = setTimeout(() => {
+        fetchLocationSuggestions(value);
+      }, 500);
+    } else if (field === 'location') {
+      setShowLocationSuggestions(false);
+      setLocationSuggestions([]);
+      setSearchingLocations(false);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    }
+  };
+
+  const fetchLocationSuggestions = async (query: string) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=10&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'KrishiEra/1.0'
+          }
+        }
+      );
+      const data = await response.json();
+      
+      const suggestions = data.map((item: any) => {
+        const address = item.address;
+        const parts = [];
+        
+        if (address.village) parts.push(address.village);
+        else if (address.town) parts.push(address.town);
+        else if (address.city) parts.push(address.city);
+        else if (address.municipality) parts.push(address.municipality);
+        
+        if (address.county && !parts.includes(address.county)) {
+          parts.push(address.county);
+        }
+        
+        if (address.state) parts.push(address.state);
+        
+        return parts.join(', ');
+      }).filter((loc: string) => loc.length > 0);
+      
+      setLocationSuggestions(suggestions);
+      setShowLocationSuggestions(suggestions.length > 0);
+    } catch (error) {
+      console.error('Error fetching location suggestions:', error);
+      setLocationSuggestions([]);
+      setShowLocationSuggestions(false);
+    } finally {
+      setSearchingLocations(false);
+    }
+  };
+
+  const selectLocation = (location: string) => {
+    updateStrategyField('location', location);
+    setShowLocationSuggestions(false);
+    setLocationSuggestions([]);
   };
 
   const fetchCurrentPriceForCrop = async (cropType: string) => {
@@ -353,11 +443,75 @@ const HarvestManagement = () => {
     }
   };
 
+  const detectLocation = async () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setDetectingLocation(true);
+    setShowLocationSuggestions(false); // Close suggestions when detecting
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      console.log(`📍 Detected coordinates: ${latitude}, ${longitude}`);
+
+      // Reverse geocode to get location name
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'KrishiEra/1.0'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to get location details');
+      }
+
+      const data = await response.json();
+      console.log('🗺️ Location data:', data);
+
+      // Extract city/district and state
+      const address = data.address || {};
+      const city = address.city || address.town || address.village || address.county || address.state_district || '';
+      const state = address.state || '';
+      
+      const locationString = city && state ? `${city}, ${state}` : state || city || 'Unknown Location';
+      
+      console.log(`✅ Detected location: ${locationString}`);
+      updateStrategyField('location', locationString);
+      
+    } catch (error: any) {
+      console.error('Location detection error:', error);
+      if (error.code === 1) {
+        alert('Location access denied. Please enable location permissions and try again.');
+      } else if (error.code === 2) {
+        alert('Location unavailable. Please check your device settings.');
+      } else if (error.code === 3) {
+        alert('Location request timeout. Please try again.');
+      } else {
+        alert('Failed to detect location. Please enter manually.');
+      }
+    } finally {
+      setDetectingLocation(false);
+    }
+  };
+
   const getSellingStrategy = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!strategyForm.cropType || !strategyForm.expectedYield || !strategyForm.harvestMonth) {
-      alert('Please fill all required fields');
+    if (!strategyForm.cropType || !strategyForm.expectedYield || !strategyForm.harvestMonth || !strategyForm.location) {
+      alert('⚠️ Please fill all required fields including location');
       return;
     }
 
@@ -395,7 +549,7 @@ const HarvestManagement = () => {
     });
   };
 
-  const detectLocation = async () => {
+  const detectLocationForListing = async () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
       return;
@@ -1386,7 +1540,7 @@ const HarvestManagement = () => {
                       />
                       <button
                         type="button"
-                        onClick={detectLocation}
+                        onClick={detectLocationForListing}
                         disabled={detectingLocation}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                         title="Detect my location"
@@ -1633,15 +1787,65 @@ const HarvestManagement = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Your Location
+                    Your Location <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={strategyForm.location}
-                    onChange={(e) => updateStrategyField('location', e.target.value)}
-                    className="input-field"
-                    placeholder="District, State (optional)"
-                  />
+                  <div className="flex gap-2 relative">
+                    <div className="flex-1 relative" ref={locationDropdownRef}>
+                      <input
+                        type="text"
+                        required
+                        value={strategyForm.location}
+                        onChange={(e) => updateStrategyField('location', e.target.value)}
+                        className="input-field w-full"
+                        placeholder="e.g., Bangalore, Karnataka"
+                        disabled={detectingLocation}
+                      />
+                      {searchingLocations && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                        </div>
+                      )}
+                      {showLocationSuggestions && locationSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {locationSuggestions.map((location, index) => (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => selectLocation(location)}
+                              className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-gray-400" />
+                                <span className="text-sm text-gray-700">{location}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={detectLocation}
+                      disabled={detectingLocation}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                      title="Auto-detect your location"
+                    >
+                      {detectingLocation ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          <span className="hidden sm:inline">Detecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="h-4 w-4" />
+                          <span className="hidden sm:inline">Detect</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    📍 Type to search locations, click "Detect" to auto-fill, or enter manually
+                  </p>
                 </div>
 
                 <button

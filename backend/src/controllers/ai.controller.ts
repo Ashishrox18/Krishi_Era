@@ -64,13 +64,20 @@ export class AIController {
         location
       } = req.body;
 
+      // Validate required fields
+      if (!cropType || !expectedYield || !yieldUnit || !harvestMonth || !location) {
+        return res.status(400).json({ 
+          error: 'Missing required fields. Location is required for accurate market analysis.' 
+        });
+      }
+
       console.log(`🌾 AI Selling Strategy Request:`);
       console.log(`   - Crop: ${cropType}`);
       console.log(`   - Expected Yield: ${expectedYield} ${yieldUnit}`);
       console.log(`   - Harvest Month: ${harvestMonth}`);
       console.log(`   - Current Market Price: ${currentMarketPrice || 'Not provided'}`);
       console.log(`   - Storage Available: ${storageAvailable}`);
-      console.log(`   - Location: ${location || 'Not specified'}`);
+      console.log(`   - Location: ${location} ✅`);
 
       // Fetch current market price if not provided
       let marketPrice = currentMarketPrice;
@@ -79,7 +86,7 @@ export class AIController {
           const { marketPriceService } = await import('../services/market-price.service');
           const priceData = await marketPriceService.getAveragePrice(cropType, location);
           marketPrice = priceData.average;
-          console.log(`📊 Fetched market price for ${cropType}: ₹${marketPrice}/${priceData.unit}`);
+          console.log(`📊 Fetched market price for ${cropType} in ${location}: ₹${marketPrice}/${priceData.unit}`);
         } catch (error) {
           console.error('Failed to fetch market price:', error);
           // Will use default in AI service
@@ -97,6 +104,7 @@ export class AIController {
         location
       });
       
+      console.log(`✅ Strategy generated for ${cropType} in ${location}`);
       res.json(strategy);
     } catch (error) {
       console.error('Selling strategy error:', error);

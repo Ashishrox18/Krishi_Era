@@ -123,8 +123,8 @@ export class TransporterController {
       const aiRecommendation = await bedrockService.optimizeRoute({
         origin,
         destinations,
-        vehicleCapacity,
-        shipments,
+        vehicleType: vehicleCapacity ? `Capacity: ${vehicleCapacity}` : 'Standard',
+        constraints: { shipments }
       });
 
       res.json({
