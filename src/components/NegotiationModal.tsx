@@ -118,8 +118,7 @@ const NegotiationModal = ({ isOpen, onClose, onSubmit, data, type }: Negotiation
         </div>
       }
     >
-      <div className="p-6"
-
+      <div className="p-6">
         <div className="mb-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-200 shadow-sm">
           <p className="text-sm text-orange-900 font-medium flex items-center">
             <TrendingUp className="h-4 w-4 mr-2" />
